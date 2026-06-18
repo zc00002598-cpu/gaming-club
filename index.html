@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏陪玩俱乐部 · 管理系统</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- 登录弹窗 -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-modal">
+    <div class="login-brand">
+      <div class="login-brand-icon">
+        <svg viewBox="0 0 40 40" fill="none"><path d="M20 2L8 12v10c0 9.94 5.16 19.15 12 23.6 6.84-4.45 12-13.66 12-23.6V12L20 2z" fill="url(#loginGrad)" stroke="url(#loginStroke)" stroke-width="1.5"/><path d="M16 20l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="loginGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/></linearGradient><linearGradient id="loginStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#f472b6"/></linearGradient></defs></svg>
+      </div>
+      <h2>游戏陪玩俱乐部</h2>
+      <p>管理系统 · 请登录后使用</p>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" id="loginTabBtn" onclick="switchLoginTab('login')">登录</button>
+      <button class="login-tab" id="registerTabBtn" onclick="switchLoginTab('register')">注册</button>
+    </div>
+    <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+      <div class="login-field">
+        <label>邮箱</label>
+        <input type="email" id="loginEmail" placeholder="admin@example.com" required autocomplete="email">
+      </div>
+      <div class="login-field">
+        <label>密码</label>
+        <input type="password" id="loginPassword" placeholder="至少 6 位" required autocomplete="current-password" minlength="6">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="login-submit" id="loginSubmit">登 录</button>
+    </form>
+    <form class="login-form hidden" id="registerForm" onsubmit="handleRegister(event)">
+      <div class="login-field">
+        <label>邮箱</label>
+        <input type="email" id="registerEmail" placeholder="admin@example.com" required autocomplete="email">
+      </div>
+      <div class="login-field">
+        <label>密码</label>
+        <input type="password" id="registerPassword" placeholder="至少 6 位" required autocomplete="new-password" minlength="6">
+      </div>
+      <div class="login-field">
+        <label>确认密码</label>
+        <input type="password" id="registerPassword2" placeholder="再次输入密码" required autocomplete="new-password" minlength="6">
+      </div>
+      <div class="login-error" id="registerError"></div>
+      <button type="submit" class="login-submit" id="registerSubmit">注 册</button>
+    </form>
+    <div class="login-hint">
+      💡 首次使用请先 <a onclick="switchLoginTab('register')">注册账号</a>，注册后自动登录
+    </div>
+  </div>
+</div>
+
+<!-- 顶部导航栏 -->
+<header class="top-bar">
+  <div class="top-bar-inner">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 40 40" fill="none"><path d="M20 2L8 12v10c0 9.94 5.16 19.15 12 23.6 6.84-4.45 12-13.66 12-23.6V12L20 2z" fill="url(#brandGrad2)" stroke="url(#brandStroke2)" stroke-width="1.5"/><path d="M16 20l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="brandGrad2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/></linearGradient><linearGradient id="brandStroke2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#f472b6"/></linearGradient></defs></svg>
+      </div>
+      <div class="brand-text">
+        <h1>游戏陪玩俱乐部</h1>
+        <span>Gaming Companion Club</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <!-- 用户信息（登录后显示） -->
+      <div class="user-info hidden" id="userInfo">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <span class="user-email" id="userEmail">admin@example.com</span>
+        <button class="btn-logout" onclick="handleLogout()" title="退出登录">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M7 3H4a2 2 0 00-2 2v10a2 2 0 002 2h3M13 15l4-4-4-4M9 11h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <!-- 云同步状态指示器 -->
+      <div class="cloud-status" id="cloudStatusBar" onclick="DataStore.forceSync()" title="点击手动同步云端数据">
+        <span class="cloud-status-dot" id="cloudStatusDot"></span>
+        <span class="cloud-status-text" id="cloudStatusText">连接中...</span>
+        <svg viewBox="0 0 20 20" fill="none" width="14" height="14" style="opacity:0.5;flex-shrink:0"><path d="M14.5 13a4 4 0 10-3-6.65M5.5 13a4 4 0 110-8 4 4 0 010 8M5.5 13h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <button class="btn-top" onclick="refreshData()" title="刷新数据">
+        <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><path d="M17 10a7 7 0 01-14 0 7 7 0 0114 0z" stroke="currentColor" stroke-width="1.5"/><path d="M17 10l-2.5-2.5M17 10l-2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="time-display" id="liveTime">--</div>
+    </div>
+  </div>
+</header>
+
+<!-- 侧边导航 -->
+<aside class="sidebar">
+  <!-- 顶部搜索 -->
+  <div class="sidebar-search">
+    <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <input type="text" placeholder="搜索菜单或订单..." oninput="sidebarQuickSearch(this.value)">
+  </div>
+
+  <nav class="nav-list">
+    <!-- 仪表盘 -->
+    <button class="nav-item" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" width="20" height="20"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span>仪表盘</span>
+    </button>
+
+    <!-- 陪玩订单 分组 -->
+    <div class="nav-group">
+      <button class="nav-group-header" onclick="toggleNavGroup(this)">
+        <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="2" y="3" width="20" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="3" x2="8" y2="21" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>陪玩订单</span>
+      </button>
+      <div class="nav-group-items">
+        <button class="nav-sub-item active" data-tab="active-orders" onclick="switchTab('active-orders')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="6" x2="13" y2="6" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="14" x2="10" y2="14" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>订单明细</span>
+          <span class="nav-badge" id="badgeActive">5</span>
+        </button>
+        <button class="nav-sub-item" data-tab="unsettled-companion" onclick="switchTab('unsettled-companion')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2v16M14.5 4.5H7.5a3 3 0 00-3 3v0a3 3 0 003 3h5a3 3 0 013 3v0a3 3 0 01-3 3H5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>陪玩明细</span>
+          <span class="nav-badge" id="badgeUnsettledC">4</span>
+        </button>
+        <button class="nav-sub-item" data-tab="unsettled-boss" onclick="switchTab('unsettled-boss')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="3.5" width="16" height="13" rx="2.5" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="8.5" x2="18" y2="8.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>老板未结算单</span>
+          <span class="nav-badge" id="badgeUnsettledB">3</span>
+        </button>
+        <button class="nav-sub-item" data-tab="order-query" onclick="switchTab('order-query')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>订单查询</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 充值系统 分组 -->
+    <div class="nav-group">
+      <button class="nav-group-header" onclick="toggleNavGroup(this)">
+        <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 2v20M17 5H9.5A3.5 3.5 0 006 8.5v0A3.5 3.5 0 009.5 12H14.5a3.5 3.5 0 013.5 3.5v0a3.5 3.5 0 01-3.5 3.5H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>充值系统</span>
+      </button>
+      <div class="nav-group-items">
+        <button class="nav-sub-item" data-tab="recharge" onclick="switchTab('recharge')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>充值管理</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 系统管理 分组 -->
+    <div class="nav-group">
+      <button class="nav-group-header" onclick="toggleNavGroup(this)">
+        <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>系统管理</span>
+      </button>
+      <div class="nav-group-items">
+        <button class="nav-sub-item" data-tab="manage-companions" onclick="switchTab('manage-companions')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 17.5c0-2.5 3.5-4.5 7-4.5s7 2 7 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>陪玩/打手管理</span>
+        </button>
+        <button class="nav-sub-item" data-tab="manage-bosses" onclick="switchTab('manage-bosses')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="10" r="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="10" r="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>老板管理</span>
+        </button>
+        <button class="nav-sub-item" data-tab="manage-categories" onclick="switchTab('manage-categories')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="2" x2="7" y2="18" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="7" x2="17" y2="7" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>类目管理</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 云档案 分组（新增） -->
+    <div class="nav-group">
+      <button class="nav-group-header" onclick="toggleNavGroup(this)">
+        <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 3v18M16 3v18M3 8h18M3 16h18" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>云档案</span>
+      </button>
+      <div class="nav-group-items">
+        <button class="nav-sub-item" data-tab="archive-history" onclick="switchTab('archive-history')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 6h8M6 10h8M6 14h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>档案历史</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="status-indicator">
+      <span class="status-dot pulse"></span>
+      <span>系统运行中</span>
+    </div>
+    <div class="version">v4.1.0 · ☁️登录+云档案</div>
+  </div>
+</aside>
+
+<!-- 主内容区 -->
+<main class="main-content" id="mainContent">
+  <!-- 内容由 JS 动态渲染 -->
+</main>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+// ============ 登录弹窗逻辑 ============
+function showLoginModal(show) {
+  const overlay = document.getElementById('loginOverlay');
+  if (show) {
+    overlay.classList.add('active');
+  } else {
+    overlay.classList.remove('active');
+  }
+}
+
+function switchLoginTab(tab) {
+  const loginBtn = document.getElementById('loginTabBtn');
+  const registerBtn = document.getElementById('registerTabBtn');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  
+  if (tab === 'login') {
+    loginBtn.classList.add('active');
+    registerBtn.classList.remove('active');
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+  } else {
+    loginBtn.classList.remove('active');
+    registerBtn.classList.add('active');
+    loginForm.classList.add('hidden');
+    registerForm.classList.remove('hidden');
+  }
+  clearLoginErrors();
+}
+
+function clearLoginErrors() {
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('registerError').textContent = '';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginSubmit');
+  btn.disabled = true;
+  btn.textContent = '登录中...';
+  
+  const result = await login(email, password);
+  
+  btn.disabled = false;
+  btn.textContent = '登 录';
+  
+  if (!result.success) {
+    document.getElementById('loginError').textContent = result.error;
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const email = document.getElementById('registerEmail').value.trim();
+  const pwd1 = document.getElementById('registerPassword').value;
+  const pwd2 = document.getElementById('registerPassword2').value;
+  const errEl = document.getElementById('registerError');
+  
+  if (pwd1 !== pwd2) {
+    errEl.textContent = '两次输入的密码不一致';
+    return;
+  }
+  if (pwd1.length < 6) {
+    errEl.textContent = '密码至少 6 位';
+    return;
+  }
+  
+  const btn = document.getElementById('registerSubmit');
+  btn.disabled = true;
+  btn.textContent = '注册中...';
+  
+  const result = await register(email, pwd1);
+  
+  btn.disabled = false;
+  btn.textContent = '注 册';
+  
+  if (!result.success) {
+    errEl.textContent = result.error;
+  }
+  // 注册成功后会自动触发 onAuthStateChanged，无需额外处理
+}
+
+async function handleLogout() {
+  await logout();
+}
+
+// ============ 更新用户界面 ============
+function updateUserUI() {
+  const user = getCurrentUser();
+  const userInfo = document.getElementById('userInfo');
+  const avatar = document.getElementById('userAvatar');
+  const emailEl = document.getElementById('userEmail');
+  
+  if (user) {
+    userInfo.classList.remove('hidden');
+    emailEl.textContent = user.email;
+    avatar.textContent = (user.email || 'U').charAt(0).toUpperCase();
+  } else {
+    userInfo.classList.add('hidden');
+  }
+}
+
+// 挂载到全局，供 data.js 回调使用
+window.updateUserUI = updateUserUI;
+window.showLoginModal = showLoginModal;
+</script>
+
+</body>
+</html>

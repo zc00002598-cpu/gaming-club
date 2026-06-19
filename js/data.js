@@ -78,14 +78,14 @@ function getAdminAccount() {
 //  初始模拟数据
 // ============================================================
 
-const companions = [
+let companions = [
   { id: 'PW-001', name: '金牌打手·阿杰', level: '王者', games: ['王者荣耀', '英雄联盟'], rating: 4.9, avatar: 'PW001' },
   { id: 'PW-002', name: '职业代练·小美', level: '宗师', games: ['王者荣耀', '和平精英'], rating: 4.8, avatar: 'PW002' },
   { id: 'PW-003', name: '狙击之王·老K', level: '大师', games: ['CS:GO', '瓦罗兰特'], rating: 4.7, avatar: 'PW003' },
   { id: 'PW-004', name: '全能战神·大龙', level: '王者', games: ['LOL', 'DOTA2', '王者荣耀'], rating: 4.9, avatar: 'PW004' },
 ];
 
-const bosses = [
+let bosses = [
   { id: 'BOSS-001', name: '老板·张总', level: 'VIP3', balance: 5000.00 },
   { id: 'BOSS-002', name: '老板·李董', level: 'VIP5', balance: 12000.00 },
   { id: 'BOSS-003', name: '老板·王少', level: 'VIP2', balance: 800.00 },

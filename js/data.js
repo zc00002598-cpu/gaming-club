@@ -1,5 +1,5 @@
 /**
- * 游戏陪玩俱乐部 - 数据层
+ * 野象电竞俱乐部 - 数据层
  * v4.2.0 — 本地 + 云存档（Firebase Realtime Database）
  *
  * ★ 登录账号：yxdj001 ~ yxdj005，密码与账号相同
@@ -130,6 +130,8 @@ function generateOrder(prefix, status, overrides = {}) {
     id: `${prefix}-202606${String(randomInt(10, 15)).padStart(2, '0')}-${String(randomInt(100, 999)).padStart(3, '0')}`,
     companionId:       companion.id,
     companionName:     companion.name,
+    companionId2:      '',       // 第二个陪玩（可选）
+    companionName2:    '',
     bossId:           boss.id,
     bossName:         boss.name,
     orderType:        overrides.orderType || randomFrom(orderTypes),
@@ -477,6 +479,11 @@ const DataStore = {
       id,
       companionId:       data.companionId || '',
       companionName:     companions.find(c => c.id === data.companionId)?.name || data.companionName || '',
+      companionId2:      data.tempCompanion2Name ? data.tempCompanion2Name : (data.companionId2 || ''),
+      companionName2:    data.tempCompanion2Name
+                           ? data.tempCompanion2Name
+                           : (data.companionId2 ? (companions.find(c => c.id === data.companionId2)?.name || data.companionName2 || '') : ''),
+      isTempCompanion2:  !!data.tempCompanion2Name,
       bossId:             data.bossId || data.tempBossName || '',
       bossName:           data.bossId
         ? (bosses.find(b => b.id === data.bossId)?.name || data.bossName || '')
@@ -509,11 +516,25 @@ const DataStore = {
     const order = orders.find(o => o.id === orderId);
     if (!order) return null;
 
-    const fields = ['companionId','companionName','bossId','bossName','orderType','confidentiality',
+    const fields = ['companionId','companionName','companionId2','companionName2','bossId','bossName','orderType','confidentiality',
       'companionMode','pricingCategory','duration','orderNo','commissionRate','status','startTime','amount','orderNo','platform'];
     fields.forEach(f => { if (data[f] !== undefined) order[f] = data[f]; });
 
     if (data.companionId) order.companionName = companions.find(c => c.id === data.companionId)?.name || order.companionName;
+    // 陪玩二：自定义ID or 正常选择
+    if (data.tempCompanion2Name) {
+      order.companionId2     = data.tempCompanion2Name;
+      order.companionName2   = data.tempCompanion2Name;
+      order.isTempCompanion2 = true;
+    } else if (data.companionId2) {
+      order.companionName2   = companions.find(c => c.id === data.companionId2)?.name || order.companionName2;
+      order.isTempCompanion2 = false;
+    } else if (data.companionId2 === '' && data.tempCompanion2Name === '') {
+      // 明确清空
+      order.companionId2     = '';
+      order.companionName2   = '';
+      order.isTempCompanion2 = false;
+    }
     if (data.bossId) {
       order.bossName = bosses.find(b => b.id === data.bossId)?.name || order.bossName;
       order.isTempBoss = false;
@@ -668,6 +689,66 @@ const DataStore = {
 
   getCompanionUnsettledOrders(companionId) {
     return orders.filter(o => o.companionId === companionId && o.status === 'unsettled_companion');
+  },
+
+  // ============ 临时陪玩 ============
+  getTempCompanions() {
+    // 收集所有临时陪玩的唯一名称
+    const tempNames = [...new Set(
+      orders.filter(o => o.isTempCompanion2 && o.companionName2)
+            .map(o => o.companionName2)
+    )];
+    return tempNames.map(name => {
+      const all = orders.filter(o => o.isTempCompanion2 && o.companionName2 === name &&
+                            (o.status === 'completed' || o.status === 'unsettled_companion'));
+      const pending = all.filter(o => !o.tempSettled);
+      const completed = all.filter(o => o.tempSettled);
+      return { name, totalOrders: all.length, pendingCount: pending.length, completedCount: completed.length };
+    });
+  },
+
+  getTempCompanionOrders(tempName) {
+    return orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
+                     (o.status === 'completed' || o.status === 'unsettled_companion'));
+  },
+
+  getTempCompanionUnsettledOrders(tempName) {
+    return orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
+                     (o.status === 'completed' || o.status === 'unsettled_companion') && !o.tempSettled);
+  },
+
+  settleTempOrdersByIds(tempName, orderIds) {
+    if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return null; }
+    const toSettle = orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
+                     (o.status === 'completed' || o.status === 'unsettled_companion') &&
+                     !o.tempSettled && orderIds.includes(o.id));
+    if (toSettle.length === 0) return null;
+
+    const totalCompanionAmount = parseFloat(toSettle.reduce((sum, o) => sum + o.companionAmount, 0).toFixed(2));
+    const totalAmount         = parseFloat(toSettle.reduce((sum, o) => sum + o.amount, 0).toFixed(2));
+    const now                 = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const settlementId       = `STL-T-${String(nextSettlementId++).padStart(3, '0')}`;
+
+    toSettle.forEach(o => { o.tempSettled = true; o.tempSettledAt = now; });
+
+    const record = {
+      id:               settlementId,
+      companionId:      tempName,
+      companionName:    tempName,
+      isTemp:           true,
+      amount:           totalCompanionAmount,
+      totalAmount,
+      orderCount:       toSettle.length,
+      settledAt:        now,
+      orderIds:         toSettle.map(o => o.id),
+    };
+    settlementHistory.unshift(record);
+    saveData(`结算临时陪玩 ${tempName}`);
+    return record;
+  },
+
+  getTempSettlementHistory(tempName) {
+    return settlementHistory.filter(r => r.isTemp && r.companionId === tempName);
   },
 
   getSettlementHistory()                        { return settlementHistory; },
@@ -825,11 +906,16 @@ const DataStore = {
     const unsettledB = orders.filter(o => o.status === 'unsettled_boss');
     const completed  = orders.filter(o => o.status === 'completed');
 
+    // 临时陪玩待结算数
+    const tempPending = orders.filter(o => o.isTempCompanion2 &&
+      (o.status === 'completed' || o.status === 'unsettled_companion') && !o.tempSettled);
+
     return {
       activeCount:                active.length,
       unsettledCompanionCount:    unsettledC.length,
       unsettledBossCount:         unsettledB.length,
       completedCount:             completed.length,
+      tempPendingCount:           tempPending.length,
       totalActiveAmount:           active.reduce((sum, o) => sum + o.amount, 0),
       totalUnsettledCompanionAmount: unsettledC.reduce((sum, o) => sum + o.companionAmount, 0),
       totalUnsettledBossAmount:   unsettledB.reduce((sum, o) => sum + o.amount, 0),

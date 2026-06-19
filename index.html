@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>游戏陪玩俱乐部 · 管理系统</title>
+<title>野象电竞俱乐部 · 管理系统</title>
 <link rel="stylesheet" href="css/styles.css">
 
 <!-- 登录守卫：检查 sessionStorage，未登录立即跳转 login.html -->
@@ -31,11 +31,11 @@
   <div class="top-bar-inner">
     <div class="brand">
       <div class="brand-icon">
-        <svg viewBox="0 0 40 40" fill="none"><path d="M20 2L8 12v10c0 9.94 5.16 19.15 12 23.6 6.84-4.45 12-13.66 12-23.6V12L20 2z" fill="url(#brandGrad2)" stroke="url(#brandStroke2)" stroke-width="1.5"/><path d="M16 20l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="brandGrad2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/></linearGradient><linearGradient id="brandStroke2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#f472b6"/></linearGradient></defs></svg>
+        <img src="assets/logo.jpg" alt="野象电竞俱乐部" style="width:40px;height:40px;object-fit:contain;border-radius:6px;">
       </div>
       <div class="brand-text">
-        <h1>游戏陪玩俱乐部</h1>
-        <span>Gaming Companion Club</span>
+        <h1>野象电竞俱乐部</h1>
+        <span>Wild Elephant Esports Club</span>
       </div>
     </div>
     <div class="top-actions">
@@ -106,8 +106,13 @@
         </button>
         <button class="nav-sub-item" data-tab="unsettled-companion" onclick="switchTab('unsettled-companion')">
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2v16M14.5 4.5H7.5a3 3 0 00-3 3v0a3 3 0 003 3h5a3 3 0 013 3v0a3 3 0 01-3 3H5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span>陪玩明细</span>
+          <span>本店陪玩明细</span>
           <span class="nav-badge" id="badgeUnsettledC">4</span>
+        </button>
+        <button class="nav-sub-item" data-tab="temp-companion" onclick="switchTab('temp-companion')">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2v16M14.5 4.5H7.5a3 3 0 00-3 3v0a3 3 0 003 3h5a3 3 0 013 3v0a3 3 0 01-3 3H5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="4" r="2.5" fill="var(--warning)" stroke="none"/></svg>
+          <span>临时陪玩明细</span>
+          <span class="nav-badge" id="badgeTempC">0</span>
         </button>
         <button class="nav-sub-item" data-tab="unsettled-boss" onclick="switchTab('unsettled-boss')">
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="3.5" width="16" height="13" rx="2.5" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="8.5" x2="18" y2="8.5" stroke="currentColor" stroke-width="1.5"/></svg>

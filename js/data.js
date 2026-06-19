@@ -130,6 +130,7 @@ function generateOrder(prefix, status, overrides = {}) {
     id: `${prefix}-202606${String(randomInt(10, 15)).padStart(2, '0')}-${String(randomInt(100, 999)).padStart(3, '0')}`,
     companionId:       companion.id,
     companionName:     companion.name,
+    isTempCompanion1:  false,    // 陪玩一是否为临时陪玩
     companionId2:      '',       // 第二个陪玩（可选）
     companionName2:    '',
     bossId:           boss.id,
@@ -477,8 +478,11 @@ const DataStore = {
 
     const order = {
       id,
-      companionId:       data.companionId || '',
-      companionName:     companions.find(c => c.id === data.companionId)?.name || data.companionName || '',
+      companionId:       data.tempCompanion1Name ? data.tempCompanion1Name : (data.companionId || ''),
+      companionName:     data.tempCompanion1Name
+                           ? data.tempCompanion1Name
+                           : (companions.find(c => c.id === data.companionId)?.name || data.companionName || ''),
+      isTempCompanion1:  !!data.tempCompanion1Name,
       companionId2:      data.tempCompanion2Name ? data.tempCompanion2Name : (data.companionId2 || ''),
       companionName2:    data.tempCompanion2Name
                            ? data.tempCompanion2Name
@@ -521,6 +525,15 @@ const DataStore = {
     fields.forEach(f => { if (data[f] !== undefined) order[f] = data[f]; });
 
     if (data.companionId) order.companionName = companions.find(c => c.id === data.companionId)?.name || order.companionName;
+    // 陪玩一：自定义ID or 正常选择
+    if (data.tempCompanion1Name) {
+      order.companionId      = data.tempCompanion1Name;
+      order.companionName    = data.tempCompanion1Name;
+      order.isTempCompanion1 = true;
+    } else if (data.companionId && data.companionId !== '__CUSTOM__') {
+      order.companionName    = companions.find(c => c.id === data.companionId)?.name || order.companionName;
+      order.isTempCompanion1 = false;
+    }
     // 陪玩二：自定义ID or 正常选择
     if (data.tempCompanion2Name) {
       order.companionId2     = data.tempCompanion2Name;
@@ -693,43 +706,69 @@ const DataStore = {
 
   // ============ 临时陪玩 ============
   getTempCompanions() {
-    // 收集所有临时陪玩的唯一名称
-    const tempNames = [...new Set(
-      orders.filter(o => o.isTempCompanion2 && o.companionName2)
-            .map(o => o.companionName2)
-    )];
+    // 收集所有临时陪玩的唯一名称（陪玩一 + 陪玩二都可能为临时）
+    const temp1Names = orders.filter(o => o.isTempCompanion1 && o.companionName).map(o => o.companionName);
+    const temp2Names = orders.filter(o => o.isTempCompanion2 && o.companionName2).map(o => o.companionName2);
+    const tempNames = [...new Set([...temp1Names, ...temp2Names])];
     return tempNames.map(name => {
-      const all = orders.filter(o => o.isTempCompanion2 && o.companionName2 === name &&
-                            (o.status === 'completed' || o.status === 'unsettled_companion'));
-      const pending = all.filter(o => !o.tempSettled);
-      const completed = all.filter(o => o.tempSettled);
+      const all = orders.filter(o =>
+        (o.status === 'completed' || o.status === 'unsettled_companion') &&
+        ((o.isTempCompanion1 && o.companionName === name) || (o.isTempCompanion2 && o.companionName2 === name))
+      );
+      const pending = all.filter(o => {
+        if (o.isTempCompanion1 && o.companionName === name && !o.temp1Settled) return true;
+        if (o.isTempCompanion2 && o.companionName2 === name && !o.tempSettled) return true;
+        return false;
+      });
+      const completed = all.filter(o => {
+        let settled = true;
+        if (o.isTempCompanion1 && o.companionName === name && !o.temp1Settled) settled = false;
+        if (o.isTempCompanion2 && o.companionName2 === name && !o.tempSettled) settled = false;
+        return settled;
+      });
       return { name, totalOrders: all.length, pendingCount: pending.length, completedCount: completed.length };
     });
   },
 
   getTempCompanionOrders(tempName) {
-    return orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
-                     (o.status === 'completed' || o.status === 'unsettled_companion'));
+    return orders.filter(o =>
+      (o.status === 'completed' || o.status === 'unsettled_companion') &&
+      ((o.isTempCompanion1 && o.companionName === tempName) || (o.isTempCompanion2 && o.companionName2 === tempName))
+    );
   },
 
   getTempCompanionUnsettledOrders(tempName) {
-    return orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
-                     (o.status === 'completed' || o.status === 'unsettled_companion') && !o.tempSettled);
+    return orders.filter(o =>
+      (o.status === 'completed' || o.status === 'unsettled_companion') &&
+      ((o.isTempCompanion1 && o.companionName === tempName && !o.temp1Settled) ||
+       (o.isTempCompanion2 && o.companionName2 === tempName && !o.tempSettled))
+    );
   },
 
   settleTempOrdersByIds(tempName, orderIds) {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return null; }
-    const toSettle = orders.filter(o => o.isTempCompanion2 && o.companionName2 === tempName &&
-                     (o.status === 'completed' || o.status === 'unsettled_companion') &&
-                     !o.tempSettled && orderIds.includes(o.id));
+    const toSettle = orders.filter(o =>
+      (o.status === 'completed' || o.status === 'unsettled_companion') && orderIds.includes(o.id) &&
+      ((o.isTempCompanion1 && o.companionName === tempName && !o.temp1Settled) ||
+       (o.isTempCompanion2 && o.companionName2 === tempName && !o.tempSettled))
+    );
     if (toSettle.length === 0) return null;
 
-    const totalCompanionAmount = parseFloat(toSettle.reduce((sum, o) => sum + o.companionAmount, 0).toFixed(2));
+    // 每个订单可能匹配多个位置（陪玩一和陪玩二都是同一临时陪玩），每个位置各得一份 companionAmount
+    const totalCompanionAmount = parseFloat(toSettle.reduce((sum, o) => {
+      let amt = 0;
+      if (o.isTempCompanion1 && o.companionName === tempName) amt += o.companionAmount;
+      if (o.isTempCompanion2 && o.companionName2 === tempName) amt += o.companionAmount;
+      return sum + amt;
+    }, 0).toFixed(2));
     const totalAmount         = parseFloat(toSettle.reduce((sum, o) => sum + o.amount, 0).toFixed(2));
     const now                 = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const settlementId       = `STL-T-${String(nextSettlementId++).padStart(3, '0')}`;
 
-    toSettle.forEach(o => { o.tempSettled = true; o.tempSettledAt = now; });
+    toSettle.forEach(o => {
+      if (o.isTempCompanion1 && o.companionName === tempName) { o.temp1Settled = true; o.temp1SettledAt = now; }
+      if (o.isTempCompanion2 && o.companionName2 === tempName) { o.tempSettled = true; o.tempSettledAt = now; }
+    });
 
     const record = {
       id:               settlementId,
@@ -906,9 +945,11 @@ const DataStore = {
     const unsettledB = orders.filter(o => o.status === 'unsettled_boss');
     const completed  = orders.filter(o => o.status === 'completed');
 
-    // 临时陪玩待结算数
-    const tempPending = orders.filter(o => o.isTempCompanion2 &&
-      (o.status === 'completed' || o.status === 'unsettled_companion') && !o.tempSettled);
+    // 临时陪玩待结算数（陪玩一 + 陪玩二都可能为临时）
+    const tempPending = orders.filter(o =>
+      (o.status === 'completed' || o.status === 'unsettled_companion') &&
+      ((o.isTempCompanion1 && !o.temp1Settled) || (o.isTempCompanion2 && !o.tempSettled))
+    );
 
     return {
       activeCount:                active.length,

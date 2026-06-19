@@ -535,7 +535,7 @@ function renderUnsettledCompanion(container) {
                         <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
                         <td>${o.companionMode}</td>
                         <td style="color:var(--accent-light);font-weight:500">${o.duration || '-'}</td>
-                        <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">[临时]</span>' : ''}</td>
+                        <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">[临时]</span>' : ''}${(() => { const b = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(x => x.id === o.bossId) : null; return b ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${b.balance?.toLocaleString?.()||b.balance||0})</span>` : ''; })()}</td>
                         <td style="font-size:12px">${o.platform || '-'}</td>
                         <td style="font-weight:600">¥${o.amount.toLocaleString()}</td>
                         <td>${o.commissionRate}%</td>
@@ -1311,13 +1311,18 @@ function viewOrderDetail(orderId) {
   if (order.status === 'unsettled_companion') settlementBtns.push(`<button class="btn btn-success" onclick="settleCompanionOrder('${order.id}');closeModal()">结算给陪玩</button>`);
   settlementBtns.push(`<button class="btn btn-edit" onclick="openEditOrderModal('${order.id}');closeModal()">编辑订单</button>`);
 
+  const bossObj = (!order.isTempBoss && order.bossId) ? DataStore.getBosses().find(b => b.id === order.bossId) : null;
+  const bossBalanceDisplay = bossObj ? `¥${bossObj.balance?.toLocaleString?.()||bossObj.balance||0}` : '非VIP老板';
+  const bossRemark = bossObj?.remark || '';
+
   const content = `
     <p style="margin-bottom:16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-light)">${order.id} ${statusLabels[order.status] || ''}</p>
     <div class="detail-grid">
       <div class="detail-item"><span class="detail-label">陪玩ID</span><span class="detail-value">${order.companionId}</span></div>
       <div class="detail-item"><span class="detail-label">陪玩名称</span><span class="detail-value">${order.companionName}</span></div>
-      <div class="detail-item"><span class="detail-label">老板ID</span><span class="detail-value">${order.bossId}</span></div>
-      <div class="detail-item"><span class="detail-label">老板名称</span><span class="detail-value">${order.bossName}</span></div>
+      <div class="detail-item"><span class="detail-label">老板ID</span><span class="detail-value">${order.bossId}${bossObj ? ` <span style="color:var(--success);font-weight:600">(${bossBalanceDisplay})</span>` : ''}</span></div>
+      <div class="detail-item"><span class="detail-label">老板名称</span><span class="detail-value">${order.bossName}${order.isTempBoss ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : ''}</span></div>
+      ${bossRemark ? `<div class="detail-item"><span class="detail-label">老板备注</span><span class="detail-value" style="color:var(--text-secondary)">${bossRemark}</span></div>` : ''}
       <div class="detail-item"><span class="detail-label">订单类型</span><span class="detail-value">${order.orderType}</span></div>
       <div class="detail-item"><span class="detail-label">保密级别</span><span class="detail-value">${confLabels[order.confidentiality] || order.confidentiality}</span></div>
       <div class="detail-item"><span class="detail-label">陪玩模式</span><span class="detail-value">${order.companionMode}</span></div>
@@ -1425,11 +1430,15 @@ function renderOrderTable(orders, context) {
             </tr>
           </thead>
           <tbody>
-            ${orders.map(o => `
+            ${orders.map(o => {
+              // 本店VIP老板显示余额
+              const bossObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(b => b.id === o.bossId) : null;
+              const bossBalanceHtml = bossObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bossObj.balance?.toLocaleString?.()||bossObj.balance||0})</span>` : '';
+              return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
                 <td>${o.companionName}</td>
-                <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</td>
+                <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}${bossBalanceHtml}</td>
                 <td>${o.orderType}</td>
                 <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
                 <td>${o.companionMode}</td>
@@ -1449,7 +1458,8 @@ function renderOrderTable(orders, context) {
                   <button class="btn btn-xs btn-delete" onclick="deleteOrder('${o.id}')" title="删除订单" style="margin-left:4px">删除</button>
                 </td>
               </tr>
-            `).join('')}
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -1483,11 +1493,14 @@ function renderQuickTable(orders, withActions) {
             </tr>
           </thead>
           <tbody>
-            ${orders.map(o => `
+            ${orders.map(o => {
+              const bObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(x => x.id === o.bossId) : null;
+              const balHtml = bObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bObj.balance?.toLocaleString?.()||bObj.balance||0})</span>` : '';
+              return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
                 <td>${o.companionName}</td>
-                <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</td>
+                <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}${balHtml}</td>
                 <td>${o.orderType}</td>
                 <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
                 <td>${o.companionMode}</td>
@@ -1496,7 +1509,8 @@ function renderQuickTable(orders, withActions) {
                 <td>${o.commissionRate}%</td>
                 <td><button class="btn btn-xs" onclick="viewOrderDetail('${o.id}')">详情</button><button class="btn btn-xs btn-edit" onclick="openEditOrderModal('${o.id}')" style="margin-left:4px">编辑</button></td>
               </tr>
-            `).join('')}
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -1650,14 +1664,14 @@ function renderBossManager(container) {
   container.innerHTML = `
     <div class="page-header">
       <div class="page-header-row">
-        <div><h2>👔 老板管理</h2><p>管理所有老板账户（${bosses.length} 人）</p></div>
+        <div><h2>👔 老板管理</h2><p>管理所有老板账户（${bosses.length} 人） · 结单自动扣除余额</p></div>
         <button class="btn btn-primary" onclick="openBossForm()">+ 添加老板</button>
       </div>
     </div>
     <div class="table-container">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ID</th><th>名称</th><th>VIP等级</th><th>余额</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>名称</th><th>VIP等级</th><th>余额</th><th>备注</th><th>操作</th></tr></thead>
           <tbody>
             ${bosses.map(b => `
               <tr>
@@ -1665,6 +1679,7 @@ function renderBossManager(container) {
                 <td><span class="editable-text" id="bname-${b.id}" onclick="inlineEditText('bname-${b.id}','boss','${b.id}','name')">${b.name}</span></td>
                 <td><span class="editable-text" id="blevel-${b.id}" onclick="inlineEditText('blevel-${b.id}','boss','${b.id}','level')">${b.level||'VIP1'}</span></td>
                 <td style="font-weight:700;color:var(--success)">¥<span class="editable-text" id="bbalance-${b.id}" onclick="inlineEditText('bbalance-${b.id}','boss','${b.id}','balance','number')">${b.balance?.toLocaleString?.()||b.balance||0}</span></td>
+                <td><span class="editable-text" id="bremark-${b.id}" onclick="inlineEditText('bremark-${b.id}','boss','${b.id}','remark')" style="color:var(--text-secondary);font-size:13px">${b.remark || '<span style="color:var(--text-muted)">点击添加备注</span>'}</span></td>
                 <td><button class="btn btn-xs btn-edit" onclick="openBossForm('${b.id}')">编辑</button><button class="btn btn-xs btn-delete" onclick="deleteBossItem('${b.id}')" style="margin-left:4px">删除</button></td>
               </tr>
             `).join('')}
@@ -1685,7 +1700,8 @@ function openBossForm(bossId) {
       <div class="order-form-grid">
         <div class="form-group"><label class="form-label">名称</label><input type="text" class="form-input" id="bfName" value="${b?.name||''}" placeholder="如：老板·张总"></div>
         <div class="form-group"><label class="form-label">VIP等级</label><input type="text" class="form-input" id="bfLevel" value="${b?.level||''}" placeholder="如：VIP3"></div>
-        <div class="form-group full-width"><label class="form-label">余额 (¥)</label><input type="number" class="form-input" id="bfBalance" value="${b?.balance||0}" step="0.01" min="0"></div>
+        <div class="form-group"><label class="form-label">余额 (¥)</label><input type="number" class="form-input" id="bfBalance" value="${b?.balance||0}" step="0.01" min="0"></div>
+        <div class="form-group full-width"><label class="form-label">备注</label><input type="text" class="form-input" id="bfRemark" value="${b?.remark||''}" placeholder="自定义备注信息（选填）"></div>
       </div>
     `,
     confirmText: isNew ? '添加' : '保存',
@@ -1693,9 +1709,10 @@ function openBossForm(bossId) {
       const name = document.getElementById('bfName')?.value?.trim();
       const level = document.getElementById('bfLevel')?.value?.trim();
       const balance = parseFloat(document.getElementById('bfBalance')?.value) || 0;
+      const remark = document.getElementById('bfRemark')?.value?.trim() || '';
       if (!name) { showToast('请输入名称', 'error'); return false; }
-      if (isNew) { DataStore.addBoss({ name, level, balance }); }
-      else { DataStore.updateBoss(bossId, { name, level, balance }); }
+      if (isNew) { DataStore.addBoss({ name, level, balance, remark }); }
+      else { DataStore.updateBoss(bossId, { name, level, balance, remark }); }
       saveData(); switchTab('manage-bosses'); showToast(isNew?'老板已添加':'老板已更新', 'success');
     }
   });

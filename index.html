@@ -5,12 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>游戏陪玩俱乐部 · 管理系统</title>
 <link rel="stylesheet" href="css/styles.css">
+
 <!-- 登录守卫：检查 sessionStorage，未登录立即跳转 login.html -->
 <script>
 (function() {
   if (sessionStorage.getItem('isLoggedIn') !== 'true') {
     window.location.replace('login.html');
   }
+})();
+</script>
+
+<!-- Firebase SDK（仅当云存档启用时加载） -->
+<script>
+(function() {
+  // 先加载 data.js 以读取 CLOUD_ENABLED，但 data.js 还未加载
+  // 所以这里用内联判断，或者直接加载 Firebase SDK（不影响性能太多）
+  // 保守方案：不在这里加载，由 data.js 中的 initFirebase() 动态加载
 })();
 </script>
 </head>
@@ -29,6 +39,19 @@
       </div>
     </div>
     <div class="top-actions">
+      <!-- 云同步按钮组 -->
+      <div class="cloud-sync-group" id="cloudSyncGroup" style="display:none;">
+        <button class="btn-top" onclick="handleCloudDownload()" id="btnCloudDownload" title="从云存档下载数据">
+          <svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M10 3v10M6 9l4 4 4-4M3 14v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>下载云端</span>
+        </button>
+        <button class="btn-top btn-upload" onclick="handleCloudUpload()" id="btnCloudUpload" title="上传到云存档">
+          <svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M10 17V7M6 11l4-4 4 4M3 6v-1a2 2 0 012-2h10a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>上传到云</span>
+        </button>
+        <div class="cloud-info" id="cloudInfo"></div>
+      </div>
+
       <!-- 用户信息（登录后显示） -->
       <div class="user-info" id="userInfo">
         <div class="user-avatar" id="userAvatar">U</div>
@@ -37,12 +60,14 @@
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M7 3H4a2 2 0 00-2 2v10a2 2 0 002 2h3M13 15l4-4-4-4M9 11h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
-      <!-- 云同步状态指示器（静态模式显示"本地管理"） -->
-      <div class="cloud-status" id="cloudStatusBar" title="本地管理模式">
-        <span class="cloud-status-dot" id="cloudStatusDot" style="background:#888780"></span>
-        <span class="cloud-status-text" id="cloudStatusText">本地管理</span>
+
+      <!-- 云同步状态指示器 -->
+      <div class="cloud-status" id="cloudStatusBar" title="点击配置云存档">
+        <span class="cloud-status-dot" id="cloudStatusDot" style="background:#888;"></span>
+        <span class="cloud-status-text" id="cloudStatusText">未配置云存档</span>
         <svg viewBox="0 0 20 20" fill="none" width="14" height="14" style="opacity:0.5;flex-shrink:0"><path d="M14.5 13a4 4 0 10-3-6.65M5.5 13a4 4 0 110-8 4 4 0 010 8M5.5 13h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
+
       <button class="btn-top" onclick="refreshData()" title="刷新数据">
         <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><path d="M17 10a7 7 0 01-14 0 7 7 0 0114 0z" stroke="currentColor" stroke-width="1.5"/><path d="M17 10l-2.5-2.5M17 10l-2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -134,7 +159,7 @@
       </div>
     </div>
 
-    <!-- 数据管理 分组（本地模式保留） -->
+    <!-- 数据管理 分组 -->
     <div class="nav-group">
       <button class="nav-group-header" onclick="toggleNavGroup(this)">
         <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -149,12 +174,12 @@
       </div>
     </div>
   </nav>
- <div class="sidebar-footer">
+  <div class="sidebar-footer">
     <div class="status-indicator">
       <span class="status-dot pulse"></span>
       <span>系统运行中</span>
     </div>
-    <div class="version">v4.1.0 · 本地管理</div>
+    <div class="version">v4.2.0 · 本地+云存档</div>
   </div>
 </aside>
 
@@ -162,6 +187,28 @@
 <main class="main-content" id="mainContent">
   <!-- 内容由 JS 动态渲染 -->
 </main>
+
+<!-- Firebase SDK（动态加载，仅当 CLOUD_ENABLED 为 true 时） -->
+<script>
+// 动态加载 Firebase SDK
+function loadFirebaseSDK() {
+  return new Promise((resolve, reject) => {
+    if (typeof firebase !== 'undefined') { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
+    script.onload = () => {
+      // 加载 database 插件
+      const script2 = document.createElement('script');
+      script2.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js';
+      script2.onload = () => resolve();
+      script2.onerror = () => reject(new Error('Firebase database SDK 加载失败'));
+      document.head.appendChild(script2);
+    };
+    script.onerror = () => reject(new Error('Firebase SDK 加载失败'));
+    document.head.appendChild(script);
+  });
+}
+</script>
 
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
@@ -185,6 +232,155 @@ function handleLogout() {
   if (emailEl)  emailEl.textContent = account;
   if (avatar)   avatar.textContent  = account.charAt(0).toUpperCase();
 })();
+
+// ============ 云存档状态初始化 ============
+(async function initCloudStatus() {
+  const cloudSyncGroup = document.getElementById('cloudSyncGroup');
+  const cloudStatusDot  = document.getElementById('cloudStatusDot');
+  const cloudStatusText = document.getElementById('cloudStatusText');
+  const cloudStatusBar  = document.getElementById('cloudStatusBar');
+
+  if (typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED && typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY") {
+    // 云存档已配置，加载 Firebase SDK
+    try {
+      await loadFirebaseSDK();
+      const ok = initFirebase();
+      if (ok) {
+        cloudStatusDot.style.background = '#10b981';
+        cloudStatusText.textContent = '云存档已连接';
+        cloudSyncGroup.style.display = 'flex';
+        cloudStatusBar.title = '云存档已连接，点击上传/下载数据';
+
+        // 获取云端最后更新信息
+        getCloudUpdateInfo().then(info => {
+          if (info) {
+            const cloudInfo = document.getElementById('cloudInfo');
+            if (cloudInfo) {
+              const t = new Date(info.lastUpdatedAt).toLocaleString('zh-CN');
+              cloudInfo.textContent = `云端更新：${info.lastUpdatedBy} 于 ${t}`;
+              cloudInfo.title = `云端数据最后由 ${info.lastUpdatedBy} 于 ${t} 更新`;
+            }
+          }
+        });
+      } else {
+        cloudStatusDot.style.background = '#f59e0b';
+        cloudStatusText.textContent = '云存档连接失败';
+      }
+    } catch (e) {
+      cloudStatusDot.style.background = '#f59e0b';
+      cloudStatusText.textContent = '云存档加载失败';
+      console.error('[Cloud] SDK 加载失败', e);
+    }
+  } else {
+    cloudStatusDot.style.background = '#888';
+    cloudStatusText.textContent = '未配置云存档';
+    cloudStatusBar.title = '点击查看云存档配置说明';
+    cloudStatusBar.style.cursor = 'pointer';
+    cloudStatusBar.onclick = showCloudConfigHelp;
+  }
+})();
+
+// ============ 云存档配置帮助 ============
+function showCloudConfigHelp() {
+  const help = `
+【云存档配置步骤】
+
+1. 打开 https://console.firebase.google.com
+2. 创建新项目（名称随意，例如：gaming-club）
+3. 左侧菜单 → "实时数据库" → 点击"创建数据库"
+   - 位置选：asia-southeast1（新加坡）
+   - 启动模式选：测试模式（或手动设置规则为公开读写）
+4. 数据库规则设置为：
+   {
+     "rules": {
+       ".read": true,
+       ".write": true
+     }
+   }
+5. 项目设置（点击左侧齿轮图标）→ "常规" 标签
+6. 向下滚动 → "您的应用" → 点击 "</>" （Web 应用）图标
+7. 复制配置对象中的值，填写到 js/data.js 顶部：
+   - apiKey
+   - authDomain
+   - databaseURL
+   - projectId
+   - storageBucket
+   - messagingSenderId
+   - appId
+8. 把 CLOUD_ENABLED 改为 true
+9. 保存后刷新页面即可使用云存档
+
+【注意事项】
+- 数据库规则为公开读写，仅适合内部管理系统
+- 建议设置 Firebase 数据库容量上限（免费版 1GB）
+- 多个管理员操作同一数据时会互相覆盖，建议先下载再修改再上传
+  `.trim();
+  alert(help);
+}
+
+// ============ 上传到云存档 ============
+async function handleCloudUpload() {
+  const btn = document.getElementById('btnCloudUpload');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;"></span>上传中...`;
+
+  const ok = await DataStore.uploadToCloud();
+  
+  btn.disabled = false;
+  btn.innerHTML = `
+    <svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M10 17V7M6 11l4-4 4 4M3 6v-1a2 2 0 012-2h10a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>上传到云</span>
+  `;
+
+  if (ok) {
+    // 刷新云端更新信息
+    getCloudUpdateInfo().then(info => {
+      if (info) {
+        const cloudInfo = document.getElementById('cloudInfo');
+        if (cloudInfo) {
+          const t = new Date(info.lastUpdatedAt).toLocaleString('zh-CN');
+          cloudInfo.textContent = `云端更新：${info.lastUpdatedBy} 于 ${t}`;
+          cloudInfo.title = `云端数据最后由 ${info.lastUpdatedBy} 于 ${t} 更新`;
+        }
+      }
+    });
+  }
+}
+
+// ============ 从云存档下载 ============
+async function handleCloudDownload() {
+  const btn = document.getElementById('btnCloudDownload');
+  if (btn.disabled) return;
+  if (!confirm('从云端下载数据将覆盖本地所有数据，确定要继续吗？')) return;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;"></span>下载中...`;
+
+  const ok = await DataStore.downloadFromCloud();
+  
+  btn.disabled = false;
+  btn.innerHTML = `
+    <svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M10 3v10M6 9l4 4 4-4M3 14v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>下载云端</span>
+  `;
+
+  if (ok) {
+    // 刷新页面数据
+    if (typeof refreshData === 'function') refreshData();
+    // 刷新云端更新信息
+    getCloudUpdateInfo().then(info => {
+      if (info) {
+        const cloudInfo = document.getElementById('cloudInfo');
+        if (cloudInfo) {
+          const t = new Date(info.lastUpdatedAt).toLocaleString('zh-CN');
+          cloudInfo.textContent = `云端更新：${info.lastUpdatedBy} 于 ${t}`;
+          cloudInfo.title = `云端数据最后由 ${info.lastUpdatedBy} 于 ${t} 更新`;
+        }
+      }
+    });
+  }
+}
 </script>
 
 </body>

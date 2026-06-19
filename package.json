@@ -1,0 +1,54 @@
+{
+  "name": "gaming-companion-club",
+  "version": "4.0.0",
+  "description": "游戏陪玩俱乐部 · 管理系统",
+  "main": "main.js",
+  "author": "Gaming Club",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64",
+    "dist-dir": "electron-builder --win --x64 --dir"
+  },
+  "build": {
+    "appId": "com.gamingclub.manager",
+    "productName": "游戏陪玩俱乐部",
+    "copyright": "© 2026 Gaming Club",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "css/**/*",
+      "js/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "assets/installer-header.bmp",
+      "installerHeaderBitmap": "assets/installer-header.bmp",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "游戏陪玩俱乐部",
+      "installerLanguages": ["SimpChinese"],
+      "language": "2052"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

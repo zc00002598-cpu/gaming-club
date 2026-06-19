@@ -659,16 +659,61 @@ function renderUnsettledCompanion(container) {
 // ============ 临时陪玩明细 ============
 let tempCompanionMap = {}; // tempKey -> tempName
 
+// ============ 临时陪玩辅助函数 ============
+
+// 判断订单对该临时陪玩是否已结算
+function isOrderTempSettledFor(o, tempName) {
+  if (o.isTempCompanion1 && o.companionName === tempName && !o.temp1Settled) return false;
+  if (o.isTempCompanion2 && o.companionName2 === tempName && !o.tempSettled) return false;
+  return true;
+}
+
+// 获取订单对该临时陪玩的应得金额（可能在多个位置）
+function getTempAmountForOrder(o, tempName) {
+  let amt = 0;
+  if (o.isTempCompanion1 && o.companionName === tempName) amt += o.companionAmount;
+  if (o.isTempCompanion2 && o.companionName2 === tempName) amt += o.companionAmount;
+  return amt;
+}
+
+// 获取该临时陪玩的结算时间
+function getTempSettledAtFor(o, tempName) {
+  if (o.isTempCompanion1 && o.companionName === tempName && o.temp1SettledAt) return o.temp1SettledAt;
+  if (o.isTempCompanion2 && o.companionName2 === tempName && o.tempSettledAt) return o.tempSettledAt;
+  return '';
+}
+
+// 获取订单中非临时陪玩的"本店陪玩"名称
+function getStoreCompanionName(o, tempName) {
+  if (o.isTempCompanion1 && o.companionName === tempName) {
+    // 陪玩一是临时，看陪玩二是否本店
+    return (!o.isTempCompanion2 && o.companionName2) ? o.companionName2 : '-';
+  }
+  if (o.isTempCompanion2 && o.companionName2 === tempName) {
+    // 陪玩二是临时，看陪玩一是否本店
+    return (!o.isTempCompanion1 && o.companionName) ? o.companionName : '-';
+  }
+  return o.companionName || '-';
+}
+
 function renderTempCompanion(container) {
   const tempCompanions = DataStore.getTempCompanions();
   tempCompanionMap = {};
 
   // 汇总所有临时陪玩的总待结算
-  const allUnsettled = tempCompanions.flatMap(tc =>
-    DataStore.getTempCompanionUnsettledOrders(tc.name)
-  );
-  const totalPendingAmount = allUnsettled.reduce((sum, o) => sum + o.companionAmount, 0);
-  const totalPendingGross = allUnsettled.reduce((sum, o) => sum + o.amount, 0);
+  let totalPendingAmount = 0;
+  let totalPendingGross = 0;
+  const countedOrderIds = new Set();
+  tempCompanions.forEach(tc => {
+    DataStore.getTempCompanionUnsettledOrders(tc.name).forEach(o => {
+      totalPendingAmount += getTempAmountForOrder(o, tc.name);
+      if (!countedOrderIds.has(o.id)) {
+        totalPendingGross += o.amount;
+        countedOrderIds.add(o.id);
+      }
+    });
+  });
+  const totalPendingCount = countedOrderIds.size;
 
   container.innerHTML = `
     <div class="page-header">
@@ -680,19 +725,19 @@ function renderTempCompanion(container) {
         <div style="text-align:right">
           <div style="font-size:14px;color:var(--text-secondary)">待结算总额（抽成后）</div>
           <div style="font-size:24px;font-weight:700;color:var(--success)">¥${totalPendingAmount.toLocaleString()}</div>
-          <div style="font-size:12px;color:var(--text-muted)">订单总额 ¥${totalPendingGross.toLocaleString()} · ${allUnsettled.length} 笔待结算</div>
+          <div style="font-size:12px;color:var(--text-muted)">订单总额 ¥${totalPendingGross.toLocaleString()} · ${totalPendingCount} 笔待结算</div>
         </div>
       </div>
     </div>
 
-    ${tempCompanions.length === 0 ? renderEmpty('暂无临时陪玩数据，新建订单时选择"陪玩选择二 → 自定义ID"即可生成') : tempCompanions.map((tc, idx) => {
+    ${tempCompanions.length === 0 ? renderEmpty('暂无临时陪玩数据，新建订单时选择"陪玩选择 → 自定义ID"或"陪玩选择二 → 自定义ID"即可生成') : tempCompanions.map((tc, idx) => {
       const tempKey = 'TEMP_' + idx;
       tempCompanionMap[tempKey] = tc.name;
 
       const allFinished = DataStore.getTempCompanionOrders(tc.name);
-      const pendingOrders = allFinished.filter(o => !o.tempSettled);
-      const completedOrders = allFinished.filter(o => o.tempSettled);
-      const pendingAmount = pendingOrders.reduce((sum, o) => sum + o.companionAmount, 0);
+      const pendingOrders = allFinished.filter(o => !isOrderTempSettledFor(o, tc.name));
+      const completedOrders = allFinished.filter(o => isOrderTempSettledFor(o, tc.name));
+      const pendingAmount = pendingOrders.reduce((sum, o) => sum + getTempAmountForOrder(o, tc.name), 0);
       const pendingGross = pendingOrders.reduce((sum, o) => sum + o.amount, 0);
 
       const totalOrders = allFinished.length;
@@ -757,18 +802,18 @@ function renderTempCompanion(container) {
                   <tbody>
                     ${pendingOrders.map(o => `
                       <tr>
-                        <td style="text-align:center"><input type="checkbox" class="settle-check-${tempKey}" data-order-id="${o.id}" data-companion-amount="${o.companionAmount}" data-amount="${o.amount}" onchange="updateTempSettleSummary('${tempKey}')"></td>
+                        <td style="text-align:center"><input type="checkbox" class="settle-check-${tempKey}" data-order-id="${o.id}" data-companion-amount="${getTempAmountForOrder(o, tc.name)}" data-amount="${o.amount}" onchange="updateTempSettleSummary('${tempKey}')"></td>
                         <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-light)">${o.id}</td>
                         <td>${o.orderType}</td>
                         <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
                         <td>${o.companionMode}</td>
                         <td style="color:var(--accent-light);font-weight:500">${o.duration || '-'}</td>
-                        <td>${o.companionName || '-'}</td>
+                        <td>${getStoreCompanionName(o, tc.name)}</td>
                         <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">[临时]</span>' : ''}</td>
                         <td style="font-size:12px">${o.platform || '-'}</td>
                         <td style="font-weight:600">¥${o.amount.toLocaleString()}</td>
                         <td>${o.commissionRate}%</td>
-                        <td style="font-weight:700;color:var(--success)">¥${o.companionAmount.toLocaleString()}</td>
+                        <td style="font-weight:700;color:var(--success)">¥${getTempAmountForOrder(o, tc.name).toLocaleString()}</td>
                         <td style="font-size:11px;color:var(--text-muted)">${(o.completedAt || o.startTime || '').substring(0, 10)}</td>
                       </tr>
                     `).join('')}
@@ -817,12 +862,12 @@ function renderTempCompanion(container) {
                           <td>${o.orderType}</td>
                           <td>${o.companionMode}</td>
                           <td style="color:var(--text-muted)">${o.duration || '-'}</td>
-                          <td>${o.companionName || '-'}</td>
+                          <td>${getStoreCompanionName(o, tc.name)}</td>
                           <td>${o.bossName}</td>
                           <td style="font-size:12px">${o.platform || '-'}</td>
                           <td>¥${o.amount.toLocaleString()}</td>
-                          <td style="color:var(--success)">¥${o.companionAmount.toLocaleString()}</td>
-                          <td style="font-size:11px;color:var(--text-muted)">${(o.tempSettledAt || '').substring(0, 10)}</td>
+                          <td style="color:var(--success)">¥${getTempAmountForOrder(o, tc.name).toLocaleString()}</td>
+                          <td style="font-size:11px;color:var(--text-muted)">${getTempSettledAtFor(o, tc.name).substring(0, 10)}</td>
                         </tr>
                       `).join('')}
                     </tbody>
@@ -949,7 +994,7 @@ function settleTempCompanionSelected(tempKey) {
     return;
   }
 
-  const totalAmount = toSettleOrders.reduce((sum, o) => sum + o.companionAmount, 0);
+  const totalAmount = toSettleOrders.reduce((sum, o) => sum + getTempAmountForOrder(o, tempName), 0);
   const remainingCount = unsettled.length - toSettleOrders.length;
 
   showConfirm({
@@ -1415,7 +1460,11 @@ function buildOrderForm(order, companions, bosses, isNew) {
     <div class="order-form-grid">
       <div class="form-group">
         <label class="form-label">陪玩选择</label>
-        <select class="form-select" id="efCompanionId" onchange="onOrderFormCompanionChange()">${cOptions}</select>
+        <select class="form-select" id="efCompanionId" onchange="onCompanion1Change()">
+          ${cOptions}
+          <option value="__CUSTOM__" ${order.companionId === '__CUSTOM__' || order.isTempCompanion1 ? 'selected' : ''}>自定义ID</option>
+        </select>
+        <input type="text" class="form-input" id="efTempCompanion1Name" value="${order.isTempCompanion1 ? (order.companionName || order.companionId || '') : ''}" placeholder="输入自定义陪玩名称" style="display:${order.companionId === '__CUSTOM__' || order.isTempCompanion1 ? 'block' : 'none'};margin-top:6px;" oninput="onTempCompanion1Input()">
       </div>
       <div class="form-group">
         <label class="form-label">陪玩选择二（可选）</label>
@@ -1495,14 +1544,29 @@ function buildOrderForm(order, companions, bosses, isNew) {
   `;
 }
 
-function onOrderFormCompanionChange() {
+function onCompanion1Change() {
   const sel = document.getElementById('efCompanionId');
-  if (!sel) return;
-  const c = DataStore.getCompanions().find(x => x.id === sel.value);
-  if (c) {
-    const efOrderType = document.getElementById('efOrderType');
-    if (efOrderType && c.games && c.games.length > 0 && !efOrderType.value) efOrderType.value = c.games[0];
+  const input = document.getElementById('efTempCompanion1Name');
+  if (!sel || !input) return;
+  input.style.display = sel.value === '__CUSTOM__' ? 'block' : 'none';
+  if (sel.value !== '__CUSTOM__') input.value = '';
+  // 选了本店陪玩 → 联动订单类型
+  if (sel.value && sel.value !== '__CUSTOM__') {
+    const c = DataStore.getCompanions().find(x => x.id === sel.value);
+    if (c) {
+      const efOrderType = document.getElementById('efOrderType');
+      if (efOrderType && c.games && c.games.length > 0 && !efOrderType.value) efOrderType.value = c.games[0];
+    }
   }
+}
+
+function onTempCompanion1Input() {
+  // 自定义陪玩输入，无需联动其他字段
+}
+
+function onOrderFormCompanionChange() {
+  // 兼容旧调用，转发到 onCompanion1Change
+  onCompanion1Change();
 }
 
 function onOrderFormBossChange() {
@@ -1559,6 +1623,18 @@ function collectOrderForm() {
   const bossId = document.getElementById('efBossId')?.value || '';
   const tempBossName = document.getElementById('efTempBossName')?.value?.trim() || '';
 
+  // 陪玩选择一：支持自定义ID
+  const companion1Select = document.getElementById('efCompanionId')?.value || '';
+  const tempCompanion1Name = document.getElementById('efTempCompanion1Name')?.value?.trim() || '';
+  let companionId = '';
+  let tempCompanion1 = '';
+  if (companion1Select === '__CUSTOM__') {
+    tempCompanion1 = tempCompanion1Name;
+    companionId = '';
+  } else {
+    companionId = companion1Select;
+  }
+
   // 陪玩选择二：支持自定义ID
   const companion2Select = document.getElementById('efCompanionId2')?.value || '';
   const tempCompanion2Name = document.getElementById('efTempCompanion2Name')?.value?.trim() || '';
@@ -1572,7 +1648,8 @@ function collectOrderForm() {
   }
 
   return {
-    companionId: document.getElementById('efCompanionId')?.value || '',
+    companionId,
+    tempCompanion1Name: tempCompanion1,
     companionId2,
     tempCompanion2Name: tempCompanion2,
     bossId: tempBossName ? '' : bossId,
@@ -1667,8 +1744,8 @@ function viewOrderDetail(orderId) {
     const content = `
     <p style="margin-bottom:16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-light)">${order.id} ${statusLabels[order.status] || ''}</p>
     <div class="detail-grid">
-      <div class="detail-item"><span class="detail-label">陪玩ID</span><span class="detail-value">${order.companionId}${order.companionId2 ? '<br><span style="font-size:11px;color:var(--text-secondary)">陪玩二：' + order.companionId2 + '</span>' : ''}</span></div>
-      <div class="detail-item"><span class="detail-label">陪玩名称</span><span class="detail-value">${order.companionName}${order.companionName2 ? '<br><span style="color:var(--success);font-weight:600">陪玩二：' + order.companionName2 + (order.isTempCompanion2 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : '') + '</span>' : ''}</span></div>
+      <div class="detail-item"><span class="detail-label">陪玩ID</span><span class="detail-value">${order.companionId}${order.isTempCompanion1 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : ''}${order.companionId2 ? '<br><span style="font-size:11px;color:var(--text-secondary)">陪玩二：' + order.companionId2 + (order.isTempCompanion2 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : '') + '</span>' : ''}</span></div>
+      <div class="detail-item"><span class="detail-label">陪玩名称</span><span class="detail-value">${order.companionName}${order.isTempCompanion1 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : ''}${order.companionName2 ? '<br><span style="color:var(--success);font-weight:600">陪玩二：' + order.companionName2 + (order.isTempCompanion2 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : '') + '</span>' : ''}</span></div>
       <div class="detail-item"><span class="detail-label">老板ID</span><span class="detail-value">${order.bossId}${bossObj ? ` <span style="color:var(--success);font-weight:600">(${bossBalanceDisplay})</span>` : ''}</span></div>
       <div class="detail-item"><span class="detail-label">老板名称</span><span class="detail-value">${order.bossName}${order.isTempBoss ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : ''}</span></div>
       ${bossRemark ? `<div class="detail-item"><span class="detail-label">老板备注</span><span class="detail-value" style="color:var(--text-secondary)">${bossRemark}</span></div>` : ''}
@@ -1783,9 +1860,10 @@ function renderOrderTable(orders, context) {
               const bossObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(b => b.id === o.bossId) : null;
               const bossBalanceHtml = bossObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bossObj.balance?.toLocaleString?.()||bossObj.balance||0})</span>` : '';
               // 双陪玩：竖着排列（同一单元格内换行），单陪玩：正常显示
+              const c1Tag = o.isTempCompanion1 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : '';
               const companionCell = o.companionId2
-                ? `${o.companionName}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}${o.isTempCompanion2 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</span>`
-                : o.companionName;
+                ? `${o.companionName}${c1Tag}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}${o.isTempCompanion2 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</span>`
+                : `${o.companionName}${c1Tag}`;
               return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
@@ -1849,9 +1927,10 @@ function renderQuickTable(orders, withActions) {
               const bObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(x => x.id === o.bossId) : null;
               const balHtml = bObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bObj.balance?.toLocaleString?.()||bObj.balance||0})</span>` : '';
               // 双陪玩竖排
+              const c1Tag = o.isTempCompanion1 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : '';
               const companionCell = o.companionId2
-                ? `${o.companionName}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}</span>`
-                : o.companionName;
+                ? `${o.companionName}${c1Tag}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}${o.isTempCompanion2 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</span>`
+                : `${o.companionName}${c1Tag}`;
               return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
@@ -2404,6 +2483,7 @@ function downloadBackupXLSX() {
       '订单编号':     o.orderNo || '',
       '陪玩ID':       o.companionId || '',
       '陪玩名称':     o.companionName || '',
+      '陪玩一(临时)': o.isTempCompanion1 ? '是' : '否',
       '陪玩二ID':     o.companionId2 || '',
       '陪玩二名称':   o.companionName2 || '',
       '陪玩二(临时)': o.isTempCompanion2 ? '是' : '否',
@@ -2429,7 +2509,8 @@ function downloadBackupXLSX() {
     }));
     const ws1 = XLSX.utils.json_to_sheet(orderData);
     ws1['!cols'] = [
-      { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 10 },
+      { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 16 }, { wch: 10 },
+      { wch: 12 }, { wch: 16 }, { wch: 10 },
       { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
       { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 14 },
       { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 },

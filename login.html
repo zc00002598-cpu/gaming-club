@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>游戏陪玩俱乐部 · 登录</title>
+<title>游戏陪玩俱乐部 · 管理员登录</title>
 <style>
   /* ============ 基础重置 ============ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -123,32 +123,8 @@
   }
   .brand p { font-size: 13px; color: var(--text3); }
 
-  /* ============ Tab 切换 ============ */
-  .tabs {
-    display: flex;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 3px;
-    margin-bottom: 28px;
-    gap: 2px;
-  }
-  .tab {
-    flex: 1; padding: 9px 0; border: none; background: transparent;
-    color: var(--text3); font-size: 14px; font-weight: 600; cursor: pointer;
-    border-radius: 8px; transition: var(--trans); font-family: inherit;
-    letter-spacing: 0.5px;
-  }
-  .tab.active {
-    background: linear-gradient(135deg, var(--accent), var(--pink));
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(124,58,237,0.35);
-  }
-  .tab:not(.active):hover { color: var(--text2); background: rgba(255,255,255,0.06); }
-
   /* ============ 表单 ============ */
   .form { display: flex; flex-direction: column; gap: 18px; }
-  .form.hidden { display: none; }
 
   .field { display: flex; flex-direction: column; gap: 7px; }
   .field label {
@@ -182,8 +158,7 @@
     background: rgba(124,58,237,0.07);
     box-shadow: 0 0 0 3px var(--glow);
   }
-  .input-wrap input:focus + .input-icon,
-  .input-wrap:has(input:focus) .input-icon { color: var(--accent2); }
+  .input-wrap:focus-within .input-icon { color: var(--accent2); }
   .input-wrap input::placeholder { color: var(--text3); }
 
   /* 密码显示/隐藏切换 */
@@ -197,28 +172,6 @@
   .toggle-pw:hover { color: var(--text2); }
   input[type="password"].input-with-toggle,
   input[type="text"].input-with-toggle { padding-right: 40px; }
-
-  /* ============ 验证码行 ============ */
-  .code-row { display: flex; gap: 10px; align-items: flex-start; }
-  .code-row .input-wrap { flex: 1; }
-  .btn-send-code {
-    flex-shrink: 0;
-    padding: 11px 14px;
-    border: 1px solid var(--border);
-    background: rgba(124,58,237,0.12);
-    color: var(--accent2);
-    border-radius: var(--radius);
-    font-size: 12px; font-weight: 700; font-family: inherit;
-    cursor: pointer; white-space: nowrap;
-    transition: var(--trans);
-    letter-spacing: 0.3px;
-  }
-  .btn-send-code:hover:not(:disabled) {
-    background: rgba(124,58,237,0.22);
-    border-color: var(--accent);
-  }
-  .btn-send-code:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-send-code.counting { color: var(--text3); background: transparent; }
 
   /* ============ 错误信息 ============ */
   .err-msg {
@@ -277,31 +230,18 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ============ 底部提示 ============ */
-  .hint { margin-top: 20px; text-align: center; font-size: 12px; color: var(--text3); line-height: 1.8; }
-  .hint a { color: var(--accent2); cursor: pointer; text-decoration: none; }
-  .hint a:hover { color: var(--pink); text-decoration: underline; }
-
-  /* ============ 分割线 ============ */
-  .divider {
-    display: flex; align-items: center; gap: 10px;
-    color: var(--text3); font-size: 11px;
-    margin: 4px 0;
+  /* ============ 账号提示 ============ */
+  .account-hint {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: rgba(124,58,237,0.06);
+    border: 1px solid rgba(124,58,237,0.15);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.8;
   }
-  .divider::before, .divider::after {
-    content: ''; flex: 1; height: 1px;
-    background: var(--border);
-  }
-
-  /* ============ 忘记密码 ============ */
-  .forgot {
-    text-align: right; margin-top: -8px;
-  }
-  .forgot a {
-    font-size: 12px; color: var(--text3); cursor: pointer;
-    transition: var(--trans); text-decoration: none;
-  }
-  .forgot a:hover { color: var(--accent2); }
+  .account-hint strong { color: var(--accent2); font-weight: 700; }
 
   /* ============ 版权 ============ */
   .copyright {
@@ -309,49 +249,6 @@
     text-align: center; font-size: 11px; color: var(--text3);
     z-index: 1; pointer-events: none;
   }
-
-  /* ============ 邮箱验证提示弹窗 ============ */
-  .verify-notice {
-    display: none;
-    flex-direction: column; align-items: center; gap: 16px;
-    text-align: center; padding: 8px 0;
-  }
-  .verify-notice.show { display: flex; }
-  .verify-icon {
-    width: 56px; height: 56px;
-    background: linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.1));
-    border: 1px solid rgba(16,185,129,0.3);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 26px;
-  }
-  .verify-title { font-size: 17px; font-weight: 700; color: var(--text); }
-  .verify-desc { font-size: 13px; color: var(--text2); line-height: 1.7; max-width: 280px; }
-  .verify-email-val { color: var(--accent2); font-weight: 600; }
-  .btn-back-login {
-    padding: 10px 28px; border: 1px solid var(--border);
-    background: transparent; color: var(--text2);
-    border-radius: 10px; cursor: pointer;
-    font-size: 13px; font-weight: 600; font-family: inherit;
-    transition: var(--trans);
-  }
-  .btn-back-login:hover { border-color: var(--accent); color: var(--accent2); background: rgba(124,58,237,0.08); }
-
-  /* ============ 重置密码面板 ============ */
-  .reset-panel {
-    display: none;
-    flex-direction: column; gap: 18px;
-  }
-  .reset-panel.show { display: flex; }
-  .reset-back {
-    display: flex; align-items: center; gap: 6px;
-    background: none; border: none; cursor: pointer;
-    color: var(--text3); font-size: 13px; font-family: inherit;
-    transition: var(--trans); padding: 0; margin-bottom: 4px;
-  }
-  .reset-back:hover { color: var(--accent2); }
-  .reset-title { font-size: 16px; font-weight: 700; color: var(--text); }
-  .reset-desc { font-size: 12px; color: var(--text3); margin-top: -8px; line-height: 1.6; }
 
   /* ============ 响应式 ============ */
   @media (max-width: 480px) {
@@ -387,24 +284,18 @@
         </svg>
       </div>
       <h1>游戏陪玩俱乐部</h1>
-      <p>管理系统 v4.1</p>
-    </div>
-
-    <!-- Tab -->
-    <div class="tabs" id="tabs">
-      <button class="tab active" id="tabLogin" onclick="switchTab('login')">登 录</button>
-      <button class="tab" id="tabRegister" onclick="switchTab('register')">注 册</button>
+      <p>管理员登录 · v4.1</p>
     </div>
 
     <!-- ===== 登录表单 ===== -->
     <form class="form" id="formLogin" onsubmit="doLogin(event)">
       <div class="field">
-        <label>邮箱账号</label>
+        <label>管理员账号</label>
         <div class="input-wrap">
           <span class="input-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h13A1.5 1.5 0 0118 5.5v9A1.5 1.5 0 0116.5 16h-13A1.5 1.5 0 012 14.5v-9z" stroke="currentColor" stroke-width="1.5"/><path d="M2 6l8 5.5L18 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 10a4 4 0 100-8 4 4 0 000 8zM3 18a7 7 0 1114 0 7 7 0 01-14 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </span>
-          <input type="email" id="loginEmail" placeholder="your@email.com" required autocomplete="email">
+          <input type="text" id="loginAccount" placeholder="请输入管理员账号" required autocomplete="username" autofocus>
         </div>
       </div>
       <div class="field">
@@ -413,98 +304,21 @@
           <span class="input-icon">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="3" y="9" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 9V6.5a3.5 3.5 0 017 0V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="13.5" r="1.5" fill="currentColor"/></svg>
           </span>
-          <input type="password" id="loginPwd" placeholder="输入密码" required autocomplete="current-password" minlength="6" class="input-with-toggle">
+          <input type="password" id="loginPwd" placeholder="请输入密码" required autocomplete="current-password" class="input-with-toggle">
           <button type="button" class="toggle-pw" onclick="togglePwd('loginPwd', this)" tabindex="-1">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
           </button>
         </div>
       </div>
-      <div class="forgot"><a onclick="switchTab('reset')">忘记密码？</a></div>
       <div class="err-msg" id="loginErr"></div>
       <button type="submit" class="btn-submit" id="loginBtn">登 录</button>
     </form>
 
-    <!-- ===== 注册表单 ===== -->
-    <form class="form hidden" id="formRegister" onsubmit="doRegister(event)">
-      <div class="field">
-        <label>邮箱账号（即登录账号）</label>
-        <div class="input-wrap">
-          <span class="input-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h13A1.5 1.5 0 0118 5.5v9A1.5 1.5 0 0116.5 16h-13A1.5 1.5 0 012 14.5v-9z" stroke="currentColor" stroke-width="1.5"/><path d="M2 6l8 5.5L18 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </span>
-          <input type="email" id="regEmail" placeholder="your@email.com" required autocomplete="email">
-        </div>
-      </div>
-      <div class="field">
-        <label>设置密码</label>
-        <div class="input-wrap">
-          <span class="input-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="3" y="9" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 9V6.5a3.5 3.5 0 017 0V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="13.5" r="1.5" fill="currentColor"/></svg>
-          </span>
-          <input type="password" id="regPwd" placeholder="至少 6 位" required autocomplete="new-password" minlength="6" class="input-with-toggle">
-          <button type="button" class="toggle-pw" onclick="togglePwd('regPwd', this)" tabindex="-1">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="field">
-        <label>确认密码</label>
-        <div class="input-wrap">
-          <span class="input-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="3" y="9" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 9V6.5a3.5 3.5 0 017 0V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="13.5" r="1.5" fill="currentColor"/></svg>
-          </span>
-          <input type="password" id="regPwd2" placeholder="再次输入密码" required autocomplete="new-password" minlength="6" class="input-with-toggle">
-          <button type="button" class="toggle-pw" onclick="togglePwd('regPwd2', this)" tabindex="-1">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="err-msg" id="regErr"></div>
-      <div class="ok-msg" id="regOk"></div>
-      <button type="submit" class="btn-submit" id="regBtn">注 册</button>
-      <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.7;">
-        注册后会向邮箱发送验证邮件，验证后即可登录
-      </div>
-    </form>
-
-    <!-- ===== 邮箱验证成功提示 ===== -->
-    <div class="verify-notice hidden" id="verifyNotice">
-      <div class="verify-icon">📬</div>
-      <div class="verify-title">验证邮件已发送</div>
-      <div class="verify-desc">
-        验证邮件已发送到 <span class="verify-email-val" id="verifyEmailVal"></span><br>
-        请查收邮件并点击验证链接，然后回来登录
-      </div>
-      <button class="btn-back-login" onclick="switchTab('login')">← 返回登录</button>
-    </div>
-
-    <!-- ===== 重置密码面板 ===== -->
-    <div class="reset-panel hidden" id="resetPanel">
-      <button type="button" class="reset-back" onclick="switchTab('login')">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        返回登录
-      </button>
-      <div>
-        <div class="reset-title">重置密码</div>
-        <div class="reset-desc">输入注册邮箱，我们将向你发送密码重置链接</div>
-      </div>
-      <div class="field">
-        <label>注册邮箱</label>
-        <div class="input-wrap">
-          <span class="input-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h13A1.5 1.5 0 0118 5.5v9A1.5 1.5 0 0116.5 16h-13A1.5 1.5 0 012 14.5v-9z" stroke="currentColor" stroke-width="1.5"/><path d="M2 6l8 5.5L18 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </span>
-          <input type="email" id="resetEmail" placeholder="your@email.com" autocomplete="email">
-        </div>
-      </div>
-      <div class="err-msg" id="resetErr"></div>
-      <div class="ok-msg" id="resetOk"></div>
-      <button type="button" class="btn-submit" id="resetBtn" onclick="doReset()">发送重置邮件</button>
-    </div>
-
-    <!-- 底部提示 -->
-    <div class="hint" id="hintArea">
-      没有账号？<a onclick="switchTab('register')">立即注册</a> &nbsp;|&nbsp; 遇到问题联系管理员
+    <!-- 账号提示 -->
+    <div class="account-hint">
+      🔒 仅限管理员登录，共 <strong>5</strong> 个授权账号<br>
+      账号：yxdj001 / yxdj002 / yxdj003 / yxdj004 / yxdj005<br>
+      密码：与账号相同
     </div>
 
   </div>
@@ -512,88 +326,21 @@
 
 <div class="copyright">© 2026 游戏陪玩俱乐部 · 管理系统</div>
 
-<!-- ============ Firebase SDK ============ -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  onAuthStateChanged
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
+<script>
 // ============================================================
-//  ↓↓↓  把这里替换成你的 Firebase 配置  ↓↓↓
+//  授权管理员账号（共5个）
+//  密码与账号相同
 // ============================================================
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "YOUR_PROJECT",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
-};
-// ============================================================
-
-let app, auth;
-let firebaseReady = false;
-
-try {
-  app = initializeApp(FIREBASE_CONFIG);
-  auth = getAuth(app);
-  firebaseReady = true;
-
-  // 已登录 → 直接跳主页
-  onAuthStateChanged(auth, (user) => {
-    if (user && user.emailVerified) {
-      window.location.replace('index.html');
-    }
-  });
-} catch(e) {
-  console.warn('Firebase 未配置，演示模式运行');
-}
-
-// ============ Tab 切换 ============
-window.switchTab = function(tab) {
-  const all = ['formLogin','formRegister','verifyNotice','resetPanel'];
-  all.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.classList.add('hidden'); el.style.display = ''; }
-  });
-
-  const tabs = document.getElementById('tabs');
-  const hint = document.getElementById('hintArea');
-  const tabLogin = document.getElementById('tabLogin');
-  const tabRegister = document.getElementById('tabRegister');
-
-  clearErrors();
-
-  if (tab === 'login') {
-    document.getElementById('formLogin').classList.remove('hidden');
-    tabLogin.classList.add('active'); tabRegister.classList.remove('active');
-    tabs.style.display = ''; hint.style.display = '';
-    hint.innerHTML = '没有账号？<a onclick="switchTab(\'register\')">立即注册</a> &nbsp;|&nbsp; 遇到问题联系管理员';
-  } else if (tab === 'register') {
-    document.getElementById('formRegister').classList.remove('hidden');
-    tabRegister.classList.add('active'); tabLogin.classList.remove('active');
-    tabs.style.display = ''; hint.style.display = '';
-    hint.innerHTML = '已有账号？<a onclick="switchTab(\'login\')">去登录</a>';
-  } else if (tab === 'verify') {
-    document.getElementById('verifyNotice').classList.remove('hidden');
-    document.getElementById('verifyNotice').style.display = 'flex';
-    tabs.style.display = 'none'; hint.style.display = 'none';
-  } else if (tab === 'reset') {
-    document.getElementById('resetPanel').classList.remove('hidden');
-    document.getElementById('resetPanel').style.display = 'flex';
-    tabs.style.display = 'none'; hint.style.display = 'none';
-  }
+const ADMIN_ACCOUNTS = {
+  'yxdj001': 'yxdj001',
+  'yxdj002': 'yxdj002',
+  'yxdj003': 'yxdj003',
+  'yxdj004': 'yxdj004',
+  'yxdj005': 'yxdj005',
 };
 
 // ============ 密码显示/隐藏 ============
-window.togglePwd = function(inputId, btn) {
+function togglePwd(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
   if (input.type === 'password') {
@@ -603,7 +350,7 @@ window.togglePwd = function(inputId, btn) {
     input.type = 'password';
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
   }
-};
+}
 
 // ============ 错误显示 ============
 function showErr(id, msg) {
@@ -611,132 +358,58 @@ function showErr(id, msg) {
   if (!el) return;
   el.textContent = msg; el.classList.add('show');
 }
-function showOk(id, msg) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = msg; el.classList.add('show');
-}
 function clearErrors() {
-  ['loginErr','regErr','regOk','resetErr','resetOk'].forEach(id => {
+  ['loginErr'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.classList.remove('show'); el.textContent = ''; }
   });
 }
 
-function setLoading(btnId, loading, text) {
+function setLoading(btnId, loading) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
   btn.disabled = loading;
   btn.innerHTML = loading
-    ? `<span class="spinner"></span>${text}`
-    : text;
+    ? `<span class="spinner"></span>登录中...`
+    : '登 录';
 }
 
-// Firebase 错误翻译
-function firebaseErrMsg(code) {
-  const map = {
-    'auth/invalid-email':            '邮箱格式不正确',
-    'auth/user-disabled':            '此账号已被禁用',
-    'auth/user-not-found':           '账号不存在，请先注册',
-    'auth/wrong-password':           '密码错误，请重试',
-    'auth/invalid-credential':       '邮箱或密码错误',
-    'auth/email-already-in-use':     '该邮箱已被注册，请直接登录',
-    'auth/weak-password':            '密码强度太弱，请至少使用 6 位',
-    'auth/too-many-requests':        '操作过于频繁，请稍后再试',
-    'auth/network-request-failed':   '网络错误，请检查网络连接',
-    'auth/requires-recent-login':    '需要重新登录后才能操作',
-    'auth/email-not-verified':       '邮箱尚未验证，请先查收验证邮件',
-  };
-  return map[code] || ('操作失败：' + code);
-}
-
-// ============ 登录 ============
-window.doLogin = async function(e) {
+// ============ 登录验证 ============
+function doLogin(e) {
   e.preventDefault();
   clearErrors();
 
-  const email = document.getElementById('loginEmail').value.trim();
-  const pwd   = document.getElementById('loginPwd').value;
+  const account = document.getElementById('loginAccount').value.trim();
+  const pwd     = document.getElementById('loginPwd').value;
 
-  if (!firebaseReady) {
-    showErr('loginErr', 'Firebase 尚未配置，请先填写 Firebase 配置信息');
+  if (!account || !pwd) {
+    showErr('loginErr', '请输入账号和密码');
     return;
   }
 
-  setLoading('loginBtn', true, '登录中...');
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, pwd);
-    const user = cred.user;
+  setLoading('loginBtn', true);
 
-    if (!user.emailVerified) {
-      // 未验证邮箱
-      await auth.signOut();
-      showErr('loginErr', '邮箱尚未验证！请查收注册时发送的验证邮件，点击验证后再登录。');
-      setLoading('loginBtn', false, '登 录');
-      return;
+  // 模拟网络延迟（增强体验感）
+  setTimeout(() => {
+    if (ADMIN_ACCOUNTS[account] && ADMIN_ACCOUNTS[account] === pwd) {
+      // 登录成功 → 写入 sessionStorage
+      sessionStorage.setItem('isLoggedIn', 'true');
+      sessionStorage.setItem('adminAccount', account);
+      sessionStorage.setItem('adminLoginTime', new Date().toISOString());
+
+      // 跳转到主页
+      window.location.replace('index.html');
+    } else {
+      showErr('loginErr', '账号或密码错误！仅授权管理员可登录');
+      setLoading('loginBtn', false);
     }
-    // 验证通过 → 跳转
-    window.location.replace('index.html');
-  } catch(err) {
-    showErr('loginErr', firebaseErrMsg(err.code));
-    setLoading('loginBtn', false, '登 录');
-  }
-};
+  }, 600);
+}
 
-// ============ 注册 ============
-window.doRegister = async function(e) {
-  e.preventDefault();
-  clearErrors();
-
-  const email = document.getElementById('regEmail').value.trim();
-  const pwd   = document.getElementById('regPwd').value;
-  const pwd2  = document.getElementById('regPwd2').value;
-
-  if (pwd !== pwd2) { showErr('regErr', '两次输入的密码不一致'); return; }
-  if (pwd.length < 6) { showErr('regErr', '密码至少需要 6 位'); return; }
-
-  if (!firebaseReady) {
-    showErr('regErr', 'Firebase 尚未配置，请先填写 Firebase 配置信息');
-    return;
-  }
-
-  setLoading('regBtn', true, '注册中...');
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pwd);
-    // 发送验证邮件
-    await sendEmailVerification(cred.user);
-    // 退出（等验证后再登录）
-    await auth.signOut();
-    // 显示验证提示
-    document.getElementById('verifyEmailVal').textContent = email;
-    switchTab('verify');
-  } catch(err) {
-    showErr('regErr', firebaseErrMsg(err.code));
-    setLoading('regBtn', false, '注 册');
-  }
-};
-
-// ============ 重置密码 ============
-window.doReset = async function() {
-  clearErrors();
-  const email = document.getElementById('resetEmail').value.trim();
-  if (!email) { showErr('resetErr', '请输入注册邮箱'); return; }
-
-  if (!firebaseReady) {
-    showErr('resetErr', 'Firebase 尚未配置');
-    return;
-  }
-
-  setLoading('resetBtn', true, '发送中...');
-  try {
-    await sendPasswordResetEmail(auth, email);
-    showOk('resetOk', '重置邮件已发送，请查收邮箱');
-    setLoading('resetBtn', false, '发送重置邮件');
-  } catch(err) {
-    showErr('resetErr', firebaseErrMsg(err.code));
-    setLoading('resetBtn', false, '发送重置邮件');
-  }
-};
+// ============ 如果已登录，直接跳转主页 ============
+if (sessionStorage.getItem('isLoggedIn') === 'true') {
+  window.location.replace('index.html');
+}
 </script>
 
 </body>

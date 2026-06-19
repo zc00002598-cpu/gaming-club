@@ -23,6 +23,9 @@ const FIREBASE_CONFIG = {
 //  ↑↑↑  替换区结束  ↑↑↑
 // ============================================================
 
+// 暴露到全局，供登录守卫（index.html 顶部）使用
+window.__FIREBASE_CONFIG__ = FIREBASE_CONFIG;
+
 // Firebase SDK（CDN，通过动态加载方式）
 let _db = null;           // Firebase database 实例
 let _dbRef = null;        // 根节点引用

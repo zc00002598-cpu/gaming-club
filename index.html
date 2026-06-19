@@ -385,6 +385,42 @@ async function handleCloudDownload() {
     });
   }
 }
+// ============ 页面加载时自动下载云存档 ============
+(function autoDownloadOnLoad() {
+  // 等待 Firebase SDK 加载完成
+  const checkFirebase = setInterval(() => {
+    if (typeof firebase !== 'undefined' && CLOUD_ENABLED) {
+      clearInterval(checkFirebase);
+      console.log('[Auto Download] 开始自动下载云存档...');
+      downloadFromCloud().then(ok => {
+        if (ok) {
+          showToast('已自动同步云端最新数据', 'success');
+          // 刷新页面数据
+          if (typeof refreshData === 'function') refreshData();
+          // 刷新云端更新信息
+          getCloudUpdateInfo().then(info => {
+            if (info) {
+              const cloudInfo = document.getElementById('cloudInfo');
+              if (cloudInfo) {
+                const t = new Date(info.lastUpdatedAt).toLocaleString('zh-CN');
+                cloudInfo.textContent = `云端更新：${info.lastUpdatedBy} 于 ${t}`;
+                cloudInfo.title = `云端数据最后由 ${info.lastUpdatedBy} 于 ${t} 更新`;
+              }
+            }
+          });
+        } else {
+          console.log('[Auto Download] 云端无数据或下载失败');
+        }
+      });
+    } else if (!CLOUD_ENABLED) {
+      clearInterval(checkFirebase);
+      console.log('[Auto Download] 云存档未启用，跳过自动下载');
+    }
+  }, 100);
+
+  // 10秒后停止检查
+  setTimeout(() => clearInterval(checkFirebase), 10000);
+})();
 </script>
 
 </body>

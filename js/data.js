@@ -204,6 +204,15 @@ function saveData(changeSummary) {
   }
   _saveLocal();
   if (changeSummary) console.log('[Save]', changeSummary);
+  
+  // 自动上传到云存档
+  if (CLOUD_ENABLED && !window.__DISABLE_AUTO_UPLOAD) {
+    uploadToCloud().then(ok => {
+      if (ok) {
+        console.log('[Auto Upload] 数据已自动上传到云存档');
+      }
+    });
+  }
 }
 
 function _saveLocal() {

@@ -5,56 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>游戏陪玩俱乐部 · 管理系统</title>
 <link rel="stylesheet" href="css/styles.css">
+<!-- 登录守卫：Firebase Auth 检测，未登录立即跳转 -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+// 与 data.js 使用相同的配置（保持一致）
+const _cfg = window.__FIREBASE_CONFIG__;
+if (_cfg && _cfg.apiKey && !_cfg.apiKey.startsWith('YOUR_')) {
+  try {
+    const _app = initializeApp(_cfg, 'guard');
+    const _auth = getAuth(_app);
+    // 页面初始隐藏，等验证后再显示
+    document.documentElement.style.visibility = 'hidden';
+    onAuthStateChanged(_auth, (user) => {
+      if (!user || !user.emailVerified) {
+        // 未登录 → 跳登录页
+        window.location.replace('login.html');
+      } else {
+        // 已登录 → 显示页面，挂载用户信息
+        document.documentElement.style.visibility = '';
+        window.__CURRENT_USER__ = user;
+      }
+    });
+  } catch(e) { document.documentElement.style.visibility = ''; }
+} else {
+  // 未配置 Firebase → 直接显示（提示模式）
+  document.documentElement.style.visibility = '';
+}
+</script>
 </head>
 <body>
-
-<!-- 登录弹窗 -->
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-modal">
-    <div class="login-brand">
-      <div class="login-brand-icon">
-        <svg viewBox="0 0 40 40" fill="none"><path d="M20 2L8 12v10c0 9.94 5.16 19.15 12 23.6 6.84-4.45 12-13.66 12-23.6V12L20 2z" fill="url(#loginGrad)" stroke="url(#loginStroke)" stroke-width="1.5"/><path d="M16 20l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="loginGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/></linearGradient><linearGradient id="loginStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#f472b6"/></linearGradient></defs></svg>
-      </div>
-      <h2>游戏陪玩俱乐部</h2>
-      <p>管理系统 · 请登录后使用</p>
-    </div>
-    <div class="login-tabs">
-      <button class="login-tab active" id="loginTabBtn" onclick="switchLoginTab('login')">登录</button>
-      <button class="login-tab" id="registerTabBtn" onclick="switchLoginTab('register')">注册</button>
-    </div>
-    <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
-      <div class="login-field">
-        <label>邮箱</label>
-        <input type="email" id="loginEmail" placeholder="admin@example.com" required autocomplete="email">
-      </div>
-      <div class="login-field">
-        <label>密码</label>
-        <input type="password" id="loginPassword" placeholder="至少 6 位" required autocomplete="current-password" minlength="6">
-      </div>
-      <div class="login-error" id="loginError"></div>
-      <button type="submit" class="login-submit" id="loginSubmit">登 录</button>
-    </form>
-    <form class="login-form hidden" id="registerForm" onsubmit="handleRegister(event)">
-      <div class="login-field">
-        <label>邮箱</label>
-        <input type="email" id="registerEmail" placeholder="admin@example.com" required autocomplete="email">
-      </div>
-      <div class="login-field">
-        <label>密码</label>
-        <input type="password" id="registerPassword" placeholder="至少 6 位" required autocomplete="new-password" minlength="6">
-      </div>
-      <div class="login-field">
-        <label>确认密码</label>
-        <input type="password" id="registerPassword2" placeholder="再次输入密码" required autocomplete="new-password" minlength="6">
-      </div>
-      <div class="login-error" id="registerError"></div>
-      <button type="submit" class="login-submit" id="registerSubmit">注 册</button>
-    </form>
-    <div class="login-hint">
-      💡 首次使用请先 <a onclick="switchLoginTab('register')">注册账号</a>，注册后自动登录
-    </div>
-  </div>
-</div>
 
 <!-- 顶部导航栏 -->
 <header class="top-bar">
@@ -206,114 +187,47 @@
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 
-<script>
-// ============ 登录弹窗逻辑 ============
-function showLoginModal(show) {
-  const overlay = document.getElementById('loginOverlay');
-  if (show) {
-    overlay.classList.add('active');
-  } else {
-    overlay.classList.remove('active');
-  }
-}
+<script type="module">
+import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 
-function switchLoginTab(tab) {
-  const loginBtn = document.getElementById('loginTabBtn');
-  const registerBtn = document.getElementById('registerTabBtn');
-  const loginForm = document.getElementById('loginForm');
-  const registerForm = document.getElementById('registerForm');
-  
-  if (tab === 'login') {
-    loginBtn.classList.add('active');
-    registerBtn.classList.remove('active');
-    loginForm.classList.remove('hidden');
-    registerForm.classList.add('hidden');
-  } else {
-    loginBtn.classList.remove('active');
-    registerBtn.classList.add('active');
-    loginForm.classList.add('hidden');
-    registerForm.classList.remove('hidden');
+// ============ 退出登录 ============
+window.handleLogout = async function() {
+  try {
+    const auth = getAuth();
+    await signOut(auth);
+    window.location.replace('login.html');
+  } catch(e) {
+    console.error('退出失败', e);
   }
-  clearLoginErrors();
-}
+};
 
-function clearLoginErrors() {
-  document.getElementById('loginError').textContent = '';
-  document.getElementById('registerError').textContent = '';
-}
-
-async function handleLogin(e) {
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const btn = document.getElementById('loginSubmit');
-  btn.disabled = true;
-  btn.textContent = '登录中...';
-  
-  const result = await login(email, password);
-  
-  btn.disabled = false;
-  btn.textContent = '登 录';
-  
-  if (!result.success) {
-    document.getElementById('loginError').textContent = result.error;
-  }
-}
-
-async function handleRegister(e) {
-  e.preventDefault();
-  const email = document.getElementById('registerEmail').value.trim();
-  const pwd1 = document.getElementById('registerPassword').value;
-  const pwd2 = document.getElementById('registerPassword2').value;
-  const errEl = document.getElementById('registerError');
-  
-  if (pwd1 !== pwd2) {
-    errEl.textContent = '两次输入的密码不一致';
-    return;
-  }
-  if (pwd1.length < 6) {
-    errEl.textContent = '密码至少 6 位';
-    return;
-  }
-  
-  const btn = document.getElementById('registerSubmit');
-  btn.disabled = true;
-  btn.textContent = '注册中...';
-  
-  const result = await register(email, pwd1);
-  
-  btn.disabled = false;
-  btn.textContent = '注 册';
-  
-  if (!result.success) {
-    errEl.textContent = result.error;
-  }
-  // 注册成功后会自动触发 onAuthStateChanged，无需额外处理
-}
-
-async function handleLogout() {
-  await logout();
-}
-
-// ============ 更新用户界面 ============
-function updateUserUI() {
-  const user = getCurrentUser();
+// ============ 用户信息 UI ============
+function updateUserUI(user) {
   const userInfo = document.getElementById('userInfo');
-  const avatar = document.getElementById('userAvatar');
-  const emailEl = document.getElementById('userEmail');
-  
+  const avatar   = document.getElementById('userAvatar');
+  const emailEl  = document.getElementById('userEmail');
+  if (!userInfo) return;
   if (user) {
     userInfo.classList.remove('hidden');
-    emailEl.textContent = user.email;
-    avatar.textContent = (user.email || 'U').charAt(0).toUpperCase();
+    if (emailEl) emailEl.textContent = user.email || '';
+    if (avatar)  avatar.textContent  = (user.email || 'U').charAt(0).toUpperCase();
   } else {
     userInfo.classList.add('hidden');
   }
 }
 
-// 挂载到全局，供 data.js 回调使用
+// 监听登录状态变化（用于实时更新顶栏用户信息）
+try {
+  const auth = getAuth();
+  onAuthStateChanged(auth, (user) => {
+    updateUserUI(user);
+    if (!user) window.location.replace('login.html');
+  });
+} catch(e) {}
+
 window.updateUserUI = updateUserUI;
-window.showLoginModal = showLoginModal;
+window.showLoginModal = () => { window.location.replace('login.html'); };
 </script>
 
 </body>

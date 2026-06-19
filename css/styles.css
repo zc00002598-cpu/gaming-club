@@ -1518,3 +1518,107 @@ details[open] summary::before {
 .ostatus-unsettled-c    { background: var(--warning-bg); color: var(--warning); }
 .ostatus-unsettled-b    { background: var(--pink-bg); color: var(--pink); }
 .ostatus-completed   { background: var(--success-bg); color: var(--success); }
+
+/* ============ 云同步按钮组 ============ */
+.cloud-sync-group {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  border-radius: var(--radius, 14px);
+}
+
+.cloud-sync-group .btn-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #a09ec0);
+  background: var(--bg-card, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+.cloud-sync-group .btn-top:hover:not(:disabled) {
+  color: var(--accent-light, #a78bfa);
+  border-color: rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.1);
+}
+.cloud-sync-group .btn-top:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cloud-sync-group .btn-top .spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.cloud-sync-group .btn-upload {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent, #7c3aed) 0%, #9333ea 100%);
+  border-color: transparent;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.3);
+}
+.cloud-sync-group .btn-upload:hover:not(:disabled) {
+  color: #fff;
+  background: linear-gradient(135deg, #9333ea 0%, var(--pink, #db2777) 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.45);
+  transform: translateY(-1px);
+}
+
+.cloud-info {
+  font-size: 10px;
+  color: var(--text-muted, #6b6a8a);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============ 云状态指示器优化 ============ */
+.cloud-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-card, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: var(--radius, 14px);
+  font-size: 12px;
+  color: var(--text-secondary, #a09ec0);
+  cursor: default;
+  transition: all 0.2s ease;
+}
+.cloud-status:hover {
+  border-color: var(--border-medium, rgba(255,255,255,0.15));
+  background: var(--bg-card-hover, rgba(255,255,255,0.08));
+}
+.cloud-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cloud-status-dot.pulse-cloud {
+  animation: pulseCloud 2s ease-in-out infinite;
+}
+@keyframes pulseCloud {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+.cloud-status-text {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}

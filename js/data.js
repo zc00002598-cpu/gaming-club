@@ -1,14 +1,70 @@
 /**
  * 游戏陪玩俱乐部 - 数据层
- * v4.1.0 — 本地管理版（无 Firebase，sessionStorage 登录校验）
+ * v4.2.0 — 本地 + 云存档（Firebase Realtime Database）
  *
- * ★ 登录账号：yxdj001 / yxdj002 / yxdj003 / yxdj004 / yxdj005
- * ★ 密码：与账号相同
- * ★ 登录状态存储在 sessionStorage，关闭浏览器后即需重新登录
+ * ★ 登录账号：yxdj001 ~ yxdj005，密码与账号相同
+ * ★ 云存档：通过 Firebase Realtime Database 实现多设备同步
+ * ★ 使用方法：填写下方 FIREBASE_CONFIG，然后在主页点"上传到云"即可
  */
 
 // ============================================================
-//  登录状态校验（代替原 Firebase Auth）
+//  ★★★  Firebase 云存档配置（请填写你自己的配置）★★★
+//  1. 打开 https://console.firebase.google.com
+//  2. 创建项目 → 左侧"实时数据库"→ 创建数据库（位置选 asia-southeast1）
+//  3. 数据库规则设置为公开读写（仅内部使用）：
+//     { "rules": { ".read": true, ".write": true } }
+//  4. 项目设置 → 常规 → 向下滚动 → "您的应用"→ 点击 "</>" 图标
+//  5. 复制配置对象，粘贴到下方
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey:      "YOUR_API_KEY",
+  authDomain:  "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:   "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:       "YOUR_APP_ID"
+};
+
+// 云存档是否启用（填写完上方配置后改为 true）
+const CLOUD_ENABLED = false;
+
+// ============================================================
+//  Firebase 初始化（仅云存档启用时加载）
+// ============================================================
+let _firebaseReady = false;
+let _database = null;
+
+function initFirebase() {
+  if (!CLOUD_ENABLED) return false;
+  if (_firebaseReady) return true;
+  if (typeof FIREBASE_CONFIG === 'undefined' || !FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+    console.warn('[Cloud] Firebase 配置未填写，云存档功能不可用');
+    return false;
+  }
+  try {
+    // 动态加载 Firebase SDK（CDN）
+    if (typeof firebase === 'undefined') {
+      console.warn('[Cloud] Firebase SDK 未加载，将在页面中自动加载');
+      // 标记需要加载，由 index.html 负责加载 SDK
+      window.__NEED_FIREBASE_SDK = true;
+      return false;
+    }
+    if (!firebase.apps?.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    _database = firebase.database();
+    _firebaseReady = true;
+    console.log('[Cloud] Firebase 初始化成功');
+    return true;
+  } catch (e) {
+    console.error('[Cloud] Firebase 初始化失败', e);
+    return false;
+  }
+}
+
+// ============================================================
+//  登录状态校验（sessionStorage）
 // ============================================================
 function isLoggedIn() {
   return sessionStorage.getItem('isLoggedIn') === 'true';
@@ -138,11 +194,10 @@ let nextCompanionId   = companions.length + 1;
 let nextBossId       = bosses.length + 1;
 
 // ============================================================
-//  持久化：saveData / loadData（纯 localStorage）
+//  持久化：saveData / loadData（localStorage + 云存档）
 // ============================================================
 
 function saveData(changeSummary) {
-  // 未登录禁止保存
   if (!isLoggedIn()) {
     showToast('请先登录后再操作', 'error');
     return;
@@ -223,6 +278,158 @@ function _loadLocal() {
 }
 
 // ============================================================
+//  ★★★ 云存档：上传 / 下载 ★★★
+// ============================================================
+
+/**
+ * 上传当前本地数据到云端
+ * 返回 Promise<boolean>
+ */
+function uploadToCloud() {
+  return new Promise((resolve) => {
+    if (!CLOUD_ENABLED) {
+      showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
+      resolve(false);
+      return;
+    }
+    if (!isLoggedIn()) {
+      showToast('请先登录', 'error');
+      resolve(false);
+      return;
+    }
+
+    const ok = initFirebase();
+    if (!ok && !_firebaseReady) {
+      showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
+      resolve(false);
+      return;
+    }
+
+    // 组装要上传的数据包
+    const payload = {
+      orders,
+      rechargeRecords,
+      bosses,
+      companions,
+      categories: { orderTypes, companionModes, pricingCategories, confidentialityOptions, durations, rechargeMethods, platforms },
+      settlementHistory,
+      nextRechargeId,
+      nextOrderId,
+      nextCompanionId,
+      nextBossId,
+      nextSettlementId,
+      lastUpdatedBy: getAdminAccount(),
+      lastUpdatedAt:  new Date().toISOString(),
+    };
+
+    const db = _database || firebase.database();
+    db.ref('gaming_club_data').set(payload, (error) => {
+      if (error) {
+        console.error('[Cloud] 上传失败', error);
+        showToast('上传失败：' + error.message, 'error');
+        resolve(false);
+      } else {
+        console.log('[Cloud] 上传成功');
+        showToast('数据已上传到云存档 ✓', 'success');
+        resolve(true);
+      }
+    });
+  });
+}
+
+/**
+ * 从云端下载数据并覆盖本地
+ * 返回 Promise<boolean>
+ */
+function downloadFromCloud() {
+  return new Promise((resolve) => {
+    if (!CLOUD_ENABLED) {
+      showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
+      resolve(false);
+      return;
+    }
+    if (!isLoggedIn()) {
+      showToast('请先登录', 'error');
+      resolve(false);
+      return;
+    }
+
+    const ok = initFirebase();
+    if (!ok && !_firebaseReady) {
+      showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
+      resolve(false);
+      return;
+    }
+
+    const db = _database || firebase.database();
+    db.ref('gaming_club_data').once('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        showToast('云端暂无数据，请先上传', 'warn');
+        resolve(false);
+        return;
+      }
+
+      try {
+        if (data.orders)           orders = data.orders;
+        if (data.rechargeRecords)   rechargeRecords = data.rechargeRecords;
+        if (data.bosses)           bosses = data.bosses;
+        if (data.companions)       companions = data.companions;
+        if (data.settlementHistory) settlementHistory = data.settlementHistory;
+        if (data.nextRechargeId)    nextRechargeId = data.nextRechargeId;
+        if (data.nextOrderId)       nextOrderId = data.nextOrderId;
+        if (data.nextCompanionId)   nextCompanionId = data.nextCompanionId;
+        if (data.nextBossId)        nextBossId = data.nextBossId;
+        if (data.nextSettlementId)  nextSettlementId = data.nextSettlementId;
+
+        if (data.categories) {
+          const cat = data.categories;
+          if (cat.orderTypes)           { orderTypes.length = 0;           orderTypes.push(...cat.orderTypes); }
+          if (cat.companionModes)       { companionModes.length = 0;       companionModes.push(...cat.companionModes); }
+          if (cat.pricingCategories)     { pricingCategories.length = 0;     pricingCategories.push(...cat.pricingCategories); }
+          if (cat.confidentialityOptions){ confidentialityOptions.length = 0; confidentialityOptions.push(...cat.confidentialityOptions); }
+          if (cat.durations)             { durations.length = 0;             durations.push(...cat.durations); }
+          if (cat.rechargeMethods)       { rechargeMethods.length = 0;       rechargeMethods.push(...cat.rechargeMethods); }
+          if (cat.platforms)             { platforms.length = 0;             platforms.push(...cat.platforms); }
+        }
+
+        _saveLocal(); // 同步到 localStorage
+        console.log('[Cloud] 下载成功，来自：', data.lastUpdatedBy, data.lastUpdatedAt);
+        showToast('已从云存档下载数据 ✓', 'success');
+        resolve(true);
+      } catch (e) {
+        console.error('[Cloud] 下载数据处理失败', e);
+        showToast('下载数据处理失败：' + e.message, 'error');
+        resolve(false);
+      }
+    }, (error) => {
+      console.error('[Cloud] 下载失败', error);
+      showToast('下载失败：' + error.message, 'error');
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * 获取云端最后更新信息
+ * 返回 Promise<{lastUpdatedBy, lastUpdatedAt} | null>
+ */
+function getCloudUpdateInfo() {
+  return new Promise((resolve) => {
+    if (!CLOUD_ENABLED || !_firebaseReady) { resolve(null); return; }
+    const db = _database || firebase.database();
+    db.ref('gaming_club_data').once('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.lastUpdatedBy) {
+        resolve({ lastUpdatedBy: data.lastUpdatedBy, lastUpdatedAt: data.lastUpdatedAt });
+      } else {
+        resolve(null);
+      }
+    }, () => resolve(null));
+  });
+}
+
+// ============================================================
 //  DataStore — 所有数据操作接口
 //  未登录时所有写操作会被阻止
 // ============================================================
@@ -230,6 +437,11 @@ const DataStore = {
   // ====== 认证相关 ======
   isLoggedIn()      { return isLoggedIn(); },
   getAdminAccount() { return getAdminAccount(); },
+
+  // ====== 云存档 ======
+  async uploadToCloud()   { return await uploadToCloud(); },
+  async downloadFromCloud() { return await downloadFromCloud(); },
+  isCloudEnabled()        { return CLOUD_ENABLED && _firebaseReady; },
 
   // ====== 订单 CRUD ======
   addOrder(data) {

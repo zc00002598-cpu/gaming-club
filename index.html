@@ -5,34 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>游戏陪玩俱乐部 · 管理系统</title>
 <link rel="stylesheet" href="css/styles.css">
-<!-- 登录守卫：Firebase Auth 检测，未登录立即跳转 -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-// 与 data.js 使用相同的配置（保持一致）
-const _cfg = window.__FIREBASE_CONFIG__;
-if (_cfg && _cfg.apiKey && !_cfg.apiKey.startsWith('YOUR_')) {
-  try {
-    const _app = initializeApp(_cfg, 'guard');
-    const _auth = getAuth(_app);
-    // 页面初始隐藏，等验证后再显示
-    document.documentElement.style.visibility = 'hidden';
-    onAuthStateChanged(_auth, (user) => {
-      if (!user || !user.emailVerified) {
-        // 未登录 → 跳登录页
-        window.location.replace('login.html');
-      } else {
-        // 已登录 → 显示页面，挂载用户信息
-        document.documentElement.style.visibility = '';
-        window.__CURRENT_USER__ = user;
-      }
-    });
-  } catch(e) { document.documentElement.style.visibility = ''; }
-} else {
-  // 未配置 Firebase → 直接显示（提示模式）
-  document.documentElement.style.visibility = '';
-}
+<!-- 登录守卫：检查 sessionStorage，未登录立即跳转 login.html -->
+<script>
+(function() {
+  if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+    window.location.replace('login.html');
+  }
+})();
 </script>
 </head>
 <body>
@@ -51,17 +30,17 @@ if (_cfg && _cfg.apiKey && !_cfg.apiKey.startsWith('YOUR_')) {
     </div>
     <div class="top-actions">
       <!-- 用户信息（登录后显示） -->
-      <div class="user-info hidden" id="userInfo">
+      <div class="user-info" id="userInfo">
         <div class="user-avatar" id="userAvatar">U</div>
-        <span class="user-email" id="userEmail">admin@example.com</span>
+        <span class="user-email" id="userEmail">admin</span>
         <button class="btn-logout" onclick="handleLogout()" title="退出登录">
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M7 3H4a2 2 0 00-2 2v10a2 2 0 002 2h3M13 15l4-4-4-4M9 11h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
-      <!-- 云同步状态指示器 -->
-      <div class="cloud-status" id="cloudStatusBar" onclick="DataStore.forceSync()" title="点击手动同步云端数据">
-        <span class="cloud-status-dot" id="cloudStatusDot"></span>
-        <span class="cloud-status-text" id="cloudStatusText">连接中...</span>
+      <!-- 云同步状态指示器（静态模式显示"本地管理"） -->
+      <div class="cloud-status" id="cloudStatusBar" title="本地管理模式">
+        <span class="cloud-status-dot" id="cloudStatusDot" style="background:#888780"></span>
+        <span class="cloud-status-text" id="cloudStatusText">本地管理</span>
         <svg viewBox="0 0 20 20" fill="none" width="14" height="14" style="opacity:0.5;flex-shrink:0"><path d="M14.5 13a4 4 0 10-3-6.65M5.5 13a4 4 0 110-8 4 4 0 010 8M5.5 13h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <button class="btn-top" onclick="refreshData()" title="刷新数据">
@@ -155,27 +134,27 @@ if (_cfg && _cfg.apiKey && !_cfg.apiKey.startsWith('YOUR_')) {
       </div>
     </div>
 
-    <!-- 云档案 分组（新增） -->
+    <!-- 数据管理 分组（本地模式保留） -->
     <div class="nav-group">
       <button class="nav-group-header" onclick="toggleNavGroup(this)">
         <svg class="group-arrow" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 3v18M16 3v18M3 8h18M3 16h18" stroke="currentColor" stroke-width="1.5"/></svg>
-        <span>云档案</span>
+        <span>数据管理</span>
       </button>
       <div class="nav-group-items">
         <button class="nav-sub-item" data-tab="archive-history" onclick="switchTab('archive-history')">
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 6h8M6 10h8M6 14h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span>档案历史</span>
+          <span>数据备份</span>
         </button>
       </div>
     </div>
   </nav>
-  <div class="sidebar-footer">
+ <div class="sidebar-footer">
     <div class="status-indicator">
       <span class="status-dot pulse"></span>
       <span>系统运行中</span>
     </div>
-    <div class="version">v4.1.0 · ☁️登录+云档案</div>
+    <div class="version">v4.1.0 · 本地管理</div>
   </div>
 </aside>
 
@@ -187,47 +166,25 @@ if (_cfg && _cfg.apiKey && !_cfg.apiKey.startsWith('YOUR_')) {
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 
-<script type="module">
-import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-
+<script>
 // ============ 退出登录 ============
-window.handleLogout = async function() {
-  try {
-    const auth = getAuth();
-    await signOut(auth);
-    window.location.replace('login.html');
-  } catch(e) {
-    console.error('退出失败', e);
-  }
-};
-
-// ============ 用户信息 UI ============
-function updateUserUI(user) {
-  const userInfo = document.getElementById('userInfo');
-  const avatar   = document.getElementById('userAvatar');
-  const emailEl  = document.getElementById('userEmail');
-  if (!userInfo) return;
-  if (user) {
-    userInfo.classList.remove('hidden');
-    if (emailEl) emailEl.textContent = user.email || '';
-    if (avatar)  avatar.textContent  = (user.email || 'U').charAt(0).toUpperCase();
-  } else {
-    userInfo.classList.add('hidden');
-  }
+function handleLogout() {
+  sessionStorage.removeItem('isLoggedIn');
+  sessionStorage.removeItem('adminAccount');
+  sessionStorage.removeItem('adminLoginTime');
+  window.location.replace('login.html');
 }
 
-// 监听登录状态变化（用于实时更新顶栏用户信息）
-try {
-  const auth = getAuth();
-  onAuthStateChanged(auth, (user) => {
-    updateUserUI(user);
-    if (!user) window.location.replace('login.html');
-  });
-} catch(e) {}
-
-window.updateUserUI = updateUserUI;
-window.showLoginModal = () => { window.location.replace('login.html'); };
+// ============ 用户信息 UI ============
+(function updateUserUI() {
+  const account = sessionStorage.getItem('adminAccount') || 'admin';
+  const avatar   = document.getElementById('userAvatar');
+  const emailEl  = document.getElementById('userEmail');
+  const userInfo = document.getElementById('userInfo');
+  if (userInfo) userInfo.classList.remove('hidden');
+  if (emailEl)  emailEl.textContent = account;
+  if (avatar)   avatar.textContent  = account.charAt(0).toUpperCase();
+})();
 </script>
 
 </body>

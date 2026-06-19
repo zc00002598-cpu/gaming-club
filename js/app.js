@@ -1,5 +1,5 @@
 /**
- * 游戏陪玩俱乐部 · 应用主逻辑
+ * 野象电竞俱乐部 · 应用主逻辑
  * 负责 UI 渲染、页面切换、交互处理
  */
 
@@ -39,6 +39,7 @@ function updateBadges() {
   updateBadge('badgeActive', stats.activeCount);
   updateBadge('badgeUnsettledC', stats.unsettledCompanionCount);
   updateBadge('badgeUnsettledB', stats.unsettledBossCount);
+  updateBadge('badgeTempC', stats.tempPendingCount || 0);
 }
 
 function refreshData() {
@@ -72,6 +73,7 @@ function switchTab(tab) {
     case 'dashboard': renderDashboard(main); break;
     case 'active-orders': renderActiveOrders(main); break;
     case 'unsettled-companion': renderUnsettledCompanion(main); break;
+    case 'temp-companion': renderTempCompanion(main); break;
     case 'unsettled-boss': renderUnsettledBoss(main); break;
     case 'order-query': renderOrderQuery(main); break;
     case 'recharge': renderRecharge(main); break;
@@ -654,6 +656,317 @@ function renderUnsettledCompanion(container) {
   `;
 }
 
+// ============ 临时陪玩明细 ============
+let tempCompanionMap = {}; // tempKey -> tempName
+
+function renderTempCompanion(container) {
+  const tempCompanions = DataStore.getTempCompanions();
+  tempCompanionMap = {};
+
+  // 汇总所有临时陪玩的总待结算
+  const allUnsettled = tempCompanions.flatMap(tc =>
+    DataStore.getTempCompanionUnsettledOrders(tc.name)
+  );
+  const totalPendingAmount = allUnsettled.reduce((sum, o) => sum + o.companionAmount, 0);
+  const totalPendingGross = allUnsettled.reduce((sum, o) => sum + o.amount, 0);
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-row">
+        <div>
+          <h2>💰 临时陪玩明细</h2>
+          <p>所有临时陪玩的订单明细、结算记录和统计数据 — 共 ${tempCompanions.length} 个临时陪玩</p>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;color:var(--text-secondary)">待结算总额（抽成后）</div>
+          <div style="font-size:24px;font-weight:700;color:var(--success)">¥${totalPendingAmount.toLocaleString()}</div>
+          <div style="font-size:12px;color:var(--text-muted)">订单总额 ¥${totalPendingGross.toLocaleString()} · ${allUnsettled.length} 笔待结算</div>
+        </div>
+      </div>
+    </div>
+
+    ${tempCompanions.length === 0 ? renderEmpty('暂无临时陪玩数据，新建订单时选择"陪玩选择二 → 自定义ID"即可生成') : tempCompanions.map((tc, idx) => {
+      const tempKey = 'TEMP_' + idx;
+      tempCompanionMap[tempKey] = tc.name;
+
+      const allFinished = DataStore.getTempCompanionOrders(tc.name);
+      const pendingOrders = allFinished.filter(o => !o.tempSettled);
+      const completedOrders = allFinished.filter(o => o.tempSettled);
+      const pendingAmount = pendingOrders.reduce((sum, o) => sum + o.companionAmount, 0);
+      const pendingGross = pendingOrders.reduce((sum, o) => sum + o.amount, 0);
+
+      const totalOrders = allFinished.length;
+      const completedCount = completedOrders.length;
+      const pendingCount = pendingOrders.length;
+
+      // 结算历史
+      const settleHistory = DataStore.getTempSettlementHistory(tc.name);
+      const totalSettled = settleHistory.reduce((sum, r) => sum + r.amount, 0);
+
+      const confLabels = {
+        '普通': '<span class="badge-confidentiality badge-conf-normal">普通</span>',
+        '机密': '<span class="badge-confidentiality badge-conf-secret">机密</span>',
+        '绝密': '<span class="badge-confidentiality badge-conf-topsecret">绝密</span>',
+      };
+
+      return `
+        <div class="companion-settle-card">
+          <!-- 临时陪玩信息头 -->
+          <div class="cs-card-header">
+            <div class="cs-comp-info">
+              <div class="cs-comp-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">${(tc.name || '?')[0]}</div>
+              <div>
+                <div class="cs-comp-name">${tc.name} <span style="font-size:11px;color:var(--warning);font-weight:600;background:rgba(245,158,11,0.12);padding:1px 6px;border-radius:4px;margin-left:4px">临</span></div>
+                <div class="cs-comp-stats">
+                  <span>📋 历史接单 <strong>${totalOrders}</strong> 单</span>
+                  <span>✅ 已结算 <strong>${completedCount}</strong> 单</span>
+                  <span>⏳ 待结算 <strong>${pendingCount}</strong> 单</span>
+                  ${totalSettled > 0 ? `<span>💵 已结算 <strong>¥${totalSettled.toLocaleString()}</strong></span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="cs-pending-amounts">
+              <div class="cs-amount-item">
+                <span class="cs-amount-label">待结算（抽成后）</span>
+                <span class="cs-amount-val ${pendingAmount > 0 ? 'success' : ''}">¥${pendingAmount.toLocaleString()}</span>
+              </div>
+              <div class="cs-amount-item">
+                <span class="cs-amount-label">订单总金额</span>
+                <span class="cs-amount-val">¥${pendingGross.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 待结算订单 -->
+          ${pendingCount > 0 ? `
+          <div style="padding:0 20px 16px">
+            <h4 style="margin:0 0 12px;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:8px">
+              ⏳ 待结算订单 (${pendingCount})
+            </h4>
+            <div class="table-container" style="margin-bottom:16px">
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width:36px;text-align:center"><input type="checkbox" id="select-all-${tempKey}" onchange="toggleSelectAllTempCompanion('${tempKey}', this.checked)" title="全选/取消"></th>
+                      <th>订单ID</th><th>订单类型</th><th>保密</th><th>模式</th><th>单位</th>
+                      <th>本店陪玩</th><th>老板</th><th>平台</th>
+                      <th>金额</th><th>抽成</th><th style="color:var(--success)">临时陪玩应得</th><th>时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${pendingOrders.map(o => `
+                      <tr>
+                        <td style="text-align:center"><input type="checkbox" class="settle-check-${tempKey}" data-order-id="${o.id}" data-companion-amount="${o.companionAmount}" data-amount="${o.amount}" onchange="updateTempSettleSummary('${tempKey}')"></td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-light)">${o.id}</td>
+                        <td>${o.orderType}</td>
+                        <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
+                        <td>${o.companionMode}</td>
+                        <td style="color:var(--accent-light);font-weight:500">${o.duration || '-'}</td>
+                        <td>${o.companionName || '-'}</td>
+                        <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">[临时]</span>' : ''}</td>
+                        <td style="font-size:12px">${o.platform || '-'}</td>
+                        <td style="font-weight:600">¥${o.amount.toLocaleString()}</td>
+                        <td>${o.commissionRate}%</td>
+                        <td style="font-weight:700;color:var(--success)">¥${o.companionAmount.toLocaleString()}</td>
+                        <td style="font-size:11px;color:var(--text-muted)">${(o.completedAt || o.startTime || '').substring(0, 10)}</td>
+                      </tr>
+                    `).join('')}
+                    <tr style="background:rgba(52,211,153,0.06)">
+                      <td></td>
+                      <td colspan="8" style="text-align:right;font-weight:600;padding:10px 12px">待结算合计</td>
+                      <td style="font-weight:700">¥${pendingGross.toLocaleString()}</td>
+                      <td></td>
+                      <td style="font-weight:700;color:var(--success);font-size:15px">¥${pendingAmount.toLocaleString()}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          ` : (totalOrders > 0 ? `
+          <div style="padding:0 20px 16px">
+            <p style="color:var(--text-muted);font-size:13px;padding:12px 0;text-align:center;border:1px dashed var(--border-subtle);border-radius:8px">✅ 该临时陪玩暂无待结算订单，所有订单已结算完毕</p>
+          </div>
+          ` : `
+          <div style="padding:0 20px 16px">
+            <p style="color:var(--text-muted);font-size:13px;padding:12px 0;text-align:center;border:1px dashed var(--border-subtle);border-radius:8px">📭 该临时陪玩暂无订单记录</p>
+          </div>
+          `)}
+
+          <!-- 已结算订单（折叠） -->
+          ${completedCount > 0 ? `
+          <div style="padding:0 20px 16px">
+            <details style="cursor:pointer">
+              <summary style="font-size:13px;color:var(--text-secondary);padding:8px 0;user-select:none">
+                ✅ 已结算订单 (${completedCount} 单)
+              </summary>
+              <div class="table-container" style="margin-top:8px">
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>订单ID</th><th>订单类型</th><th>模式</th><th>单位</th><th>本店陪玩</th><th>老板</th><th>平台</th><th>金额</th><th>应得</th><th>结算时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${completedOrders.map(o => `
+                        <tr>
+                          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted)">${o.id}</td>
+                          <td>${o.orderType}</td>
+                          <td>${o.companionMode}</td>
+                          <td style="color:var(--text-muted)">${o.duration || '-'}</td>
+                          <td>${o.companionName || '-'}</td>
+                          <td>${o.bossName}</td>
+                          <td style="font-size:12px">${o.platform || '-'}</td>
+                          <td>¥${o.amount.toLocaleString()}</td>
+                          <td style="color:var(--success)">¥${o.companionAmount.toLocaleString()}</td>
+                          <td style="font-size:11px;color:var(--text-muted)">${(o.tempSettledAt || '').substring(0, 10)}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </div>
+          ` : ''}
+
+          <!-- 结算历史 -->
+          ${settleHistory.length > 0 ? `
+          <div style="padding:0 20px 16px">
+            <details style="cursor:pointer">
+              <summary style="font-size:13px;color:var(--text-secondary);padding:8px 0;user-select:none">
+                📜 历史结算记录 (${settleHistory.length} 次)
+                <span style="font-weight:400;font-size:12px;color:var(--text-muted);margin-left:8px">— 累计已结算 ¥${totalSettled.toLocaleString()}</span>
+              </summary>
+              <div class="table-container" style="margin-top:8px">
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr><th>结算编号</th><th>结算时间</th><th>结算单数</th><th>结算金额</th><th>订单总金额</th></tr>
+                    </thead>
+                    <tbody>
+                      ${settleHistory.map(r => `
+                        <tr>
+                          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-light)">${r.id}</td>
+                          <td style="font-size:12px">${r.settledAt}</td>
+                          <td style="font-weight:600">${r.orderCount} 单</td>
+                          <td style="font-weight:700;color:var(--success)">¥${r.amount.toLocaleString()}</td>
+                          <td style="color:var(--text-secondary)">¥${r.totalAmount.toLocaleString()}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </div>
+          ` : ''}
+
+          <!-- 结算按钮 -->
+          ${pendingCount > 0 ? `
+          <div class="cs-settle-bar" id="settle-bar-${tempKey}">
+            <div class="cs-settle-info">
+              <span>本次结算金额（抽成后）：</span>
+              <strong id="settle-amount-${tempKey}" style="color:var(--success);font-size:20px">¥${pendingAmount.toLocaleString()}</strong>
+              <span id="settle-count-${tempKey}" style="color:var(--text-muted);font-size:12px">（${pendingCount} 笔订单）</span>
+            </div>
+            <button class="btn btn-success btn-lg" onclick="settleTempCompanionSelected('${tempKey}')" style="padding:12px 32px;font-size:15px">
+              💰 结算给 ${tc.name} <span style="font-size:12px;color:var(--warning)">临</span>
+            </button>
+          </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ============ 临时陪玩 — 结算功能 ============
+
+function toggleSelectAllTempCompanion(tempKey, checked) {
+  const checkboxes = document.querySelectorAll('.settle-check-' + tempKey);
+  checkboxes.forEach(cb => { cb.checked = checked; });
+  updateTempSettleSummary(tempKey);
+}
+
+function updateTempSettleSummary(tempKey) {
+  const checkboxes = document.querySelectorAll('.settle-check-' + tempKey);
+  let selectedAmount = 0;
+  let selectedGross = 0;
+  let selectedCount = 0;
+  checkboxes.forEach(cb => {
+    if (cb.checked) {
+      selectedAmount += parseFloat(cb.dataset.companionAmount || 0);
+      selectedGross += parseFloat(cb.dataset.amount || 0);
+      selectedCount++;
+    }
+  });
+
+  const allCb = document.getElementById('select-all-' + tempKey);
+  if (allCb) {
+    const totalCbs = checkboxes.length;
+    if (selectedCount === 0) allCb.indeterminate = false;
+    else if (selectedCount === totalCbs) allCb.indeterminate = false;
+    else allCb.indeterminate = true;
+    allCb.checked = (selectedCount === totalCbs && totalCbs > 0);
+  }
+
+  const amountEl = document.getElementById('settle-amount-' + tempKey);
+  const countEl = document.getElementById('settle-count-' + tempKey);
+  if (amountEl) amountEl.textContent = '¥' + selectedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (countEl) countEl.textContent = '（' + selectedCount + ' 笔订单 · 总额 ¥' + selectedGross.toLocaleString() + '）';
+
+  const settleBar = document.getElementById('settle-bar-' + tempKey);
+  if (settleBar) {
+    const btn = settleBar.querySelector('button');
+    if (btn) {
+      btn.disabled = selectedCount === 0;
+      btn.style.opacity = selectedCount === 0 ? '0.5' : '1';
+    }
+  }
+}
+
+function settleTempCompanionSelected(tempKey) {
+  const tempName = tempCompanionMap[tempKey];
+  if (!tempName) { showToast('临时陪玩信息丢失，请刷新页面', 'error'); return; }
+
+  const checkboxes = document.querySelectorAll('.settle-check-' + tempKey);
+  const selectedIds = [];
+  checkboxes.forEach(cb => { if (cb.checked) selectedIds.push(cb.dataset.orderId); });
+
+  const unsettled = DataStore.getTempCompanionUnsettledOrders(tempName);
+  const selectedOrders = unsettled.filter(o => selectedIds.includes(o.id));
+
+  // 如果没选中任何订单，默认结算全部
+  const toSettleIds = selectedIds.length > 0 ? selectedIds : unsettled.map(o => o.id);
+  const toSettleOrders = selectedIds.length > 0 ? selectedOrders : unsettled;
+
+  if (toSettleOrders.length === 0) {
+    showToast('该临时陪玩没有待结算订单', 'info');
+    return;
+  }
+
+  const totalAmount = toSettleOrders.reduce((sum, o) => sum + o.companionAmount, 0);
+  const remainingCount = unsettled.length - toSettleOrders.length;
+
+  showConfirm({
+    title: '💰 结算临时陪玩',
+    message: `确认结算临时陪玩「${tempName}」的 ${toSettleOrders.length} 笔订单？\n\n结算金额（抽成后）：¥${totalAmount.toLocaleString()}\n\n${remainingCount > 0 ? '剩余 ' + remainingCount + ' 笔订单将继续保留在待结算列表。' : '所有待结算订单将全部结清。'}`,
+    onConfirm: () => {
+      const record = DataStore.settleTempOrdersByIds(tempName, toSettleIds);
+      if (record) {
+        saveData();
+        updateBadges();
+        switchTab('temp-companion');
+        showToast(`已结算 ¥${record.amount.toLocaleString()}（${record.orderCount} 笔）给 临时陪玩 ${tempName}`, 'success');
+      }
+    }
+  });
+}
+
 // ============ 老板未结算 ============
 function renderUnsettledBoss(container) {
   const orders = DataStore.getUnsettledBossOrders();
@@ -1093,6 +1406,7 @@ function openEditOrderModal(orderId) {
 
 function buildOrderForm(order, companions, bosses, isNew) {
   const cOptions = companions.map(c => `<option value="${c.id}" ${order.companionId === c.id ? 'selected' : ''}>${c.name} (${c.id})</option>`).join('');
+  const c2Options = companions.map(c => `<option value="${c.id}" ${order.companionId2 === c.id ? 'selected' : ''}>${c.name} (${c.id})</option>`).join('');
   const bOptions = bosses.map(b => `<option value="${b.id}" ${order.bossId === b.id ? 'selected' : ''}>${b.name} (${b.id})</option>`).join('');
   const isTempBoss = order.isTempBoss || (!order.bossId && order.bossName && !bosses.find(b => b.id === order.bossId));
   const tempBossVal = isTempBoss ? (order.bossName || order.bossId || '') : '';
@@ -1102,6 +1416,15 @@ function buildOrderForm(order, companions, bosses, isNew) {
       <div class="form-group">
         <label class="form-label">陪玩选择</label>
         <select class="form-select" id="efCompanionId" onchange="onOrderFormCompanionChange()">${cOptions}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">陪玩选择二（可选）</label>
+        <select class="form-select" id="efCompanionId2" onchange="onCompanion2Change()">
+          <option value="">-- 不需要 --</option>
+          ${c2Options}
+          <option value="__CUSTOM__" ${order.companionId2 === '__CUSTOM__' || order.isTempCompanion2 ? 'selected' : ''}>自定义ID</option>
+        </select>
+        <input type="text" class="form-input" id="efTempCompanion2Name" value="${order.isTempCompanion2 ? (order.companionName2 || order.companionId2 || '') : ''}" placeholder="输入自定义陪玩名称" style="display:${order.companionId2 === '__CUSTOM__' || order.isTempCompanion2 ? 'block' : 'none'};margin-top:6px;" oninput="onTempCompanion2Input()">
       </div>
       <div class="form-group">
         <label class="form-label">本店VIP</label>
@@ -1200,6 +1523,18 @@ function onTempBossInput() {
   }
 }
 
+function onCompanion2Change() {
+  const sel = document.getElementById('efCompanionId2');
+  const input = document.getElementById('efTempCompanion2Name');
+  if (!sel || !input) return;
+  input.style.display = sel.value === '__CUSTOM__' ? 'block' : 'none';
+  if (sel.value !== '__CUSTOM__') input.value = '';
+}
+
+function onTempCompanion2Input() {
+  // 自定义陪玩输入，无需联动其他字段
+}
+
 function onOrderFormStatusChange() {
   const status = document.getElementById('efStatus')?.value;
   const settledEl = document.getElementById('efBossSettled');
@@ -1224,8 +1559,22 @@ function collectOrderForm() {
   const bossId = document.getElementById('efBossId')?.value || '';
   const tempBossName = document.getElementById('efTempBossName')?.value?.trim() || '';
 
+  // 陪玩选择二：支持自定义ID
+  const companion2Select = document.getElementById('efCompanionId2')?.value || '';
+  const tempCompanion2Name = document.getElementById('efTempCompanion2Name')?.value?.trim() || '';
+  let companionId2 = '';
+  let tempCompanion2 = '';
+  if (companion2Select === '__CUSTOM__') {
+    tempCompanion2 = tempCompanion2Name;
+    companionId2 = '';
+  } else {
+    companionId2 = companion2Select;
+  }
+
   return {
     companionId: document.getElementById('efCompanionId')?.value || '',
+    companionId2,
+    tempCompanion2Name: tempCompanion2,
     bossId: tempBossName ? '' : bossId,
     bossName: tempBossName ? '' : (DataStore.getBosses().find(b => b.id === bossId)?.name || ''),
     tempBossName: tempBossName,
@@ -1315,11 +1664,11 @@ function viewOrderDetail(orderId) {
   const bossBalanceDisplay = bossObj ? `¥${bossObj.balance?.toLocaleString?.()||bossObj.balance||0}` : '非VIP老板';
   const bossRemark = bossObj?.remark || '';
 
-  const content = `
+    const content = `
     <p style="margin-bottom:16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-light)">${order.id} ${statusLabels[order.status] || ''}</p>
     <div class="detail-grid">
-      <div class="detail-item"><span class="detail-label">陪玩ID</span><span class="detail-value">${order.companionId}</span></div>
-      <div class="detail-item"><span class="detail-label">陪玩名称</span><span class="detail-value">${order.companionName}</span></div>
+      <div class="detail-item"><span class="detail-label">陪玩ID</span><span class="detail-value">${order.companionId}${order.companionId2 ? '<br><span style="font-size:11px;color:var(--text-secondary)">陪玩二：' + order.companionId2 + '</span>' : ''}</span></div>
+      <div class="detail-item"><span class="detail-label">陪玩名称</span><span class="detail-value">${order.companionName}${order.companionName2 ? '<br><span style="color:var(--success);font-weight:600">陪玩二：' + order.companionName2 + (order.isTempCompanion2 ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : '') + '</span>' : ''}</span></div>
       <div class="detail-item"><span class="detail-label">老板ID</span><span class="detail-value">${order.bossId}${bossObj ? ` <span style="color:var(--success);font-weight:600">(${bossBalanceDisplay})</span>` : ''}</span></div>
       <div class="detail-item"><span class="detail-label">老板名称</span><span class="detail-value">${order.bossName}${order.isTempBoss ? ' <span style="font-size:11px;color:var(--warning)">[临时]</span>' : ''}</span></div>
       ${bossRemark ? `<div class="detail-item"><span class="detail-label">老板备注</span><span class="detail-value" style="color:var(--text-secondary)">${bossRemark}</span></div>` : ''}
@@ -1431,13 +1780,16 @@ function renderOrderTable(orders, context) {
           </thead>
           <tbody>
             ${orders.map(o => {
-              // 本店VIP老板显示余额
               const bossObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(b => b.id === o.bossId) : null;
               const bossBalanceHtml = bossObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bossObj.balance?.toLocaleString?.()||bossObj.balance||0})</span>` : '';
+              // 双陪玩：竖着排列（同一单元格内换行），单陪玩：正常显示
+              const companionCell = o.companionId2
+                ? `${o.companionName}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}${o.isTempCompanion2 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</span>`
+                : o.companionName;
               return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
-                <td>${o.companionName}</td>
+                <td>${companionCell}</td>
                 <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}${bossBalanceHtml}</td>
                 <td>${o.orderType}</td>
                 <td>${confLabels[o.confidentiality] || o.confidentiality}</td>
@@ -1496,10 +1848,14 @@ function renderQuickTable(orders, withActions) {
             ${orders.map(o => {
               const bObj = (!o.isTempBoss && o.bossId) ? DataStore.getBosses().find(x => x.id === o.bossId) : null;
               const balHtml = bObj ? ` <span style="font-size:10px;color:var(--success);font-weight:600">(¥${bObj.balance?.toLocaleString?.()||bObj.balance||0})</span>` : '';
+              // 双陪玩竖排
+              const companionCell = o.companionId2
+                ? `${o.companionName}<br><span style="color:var(--success);font-weight:600">${o.companionName2 || '-'}</span>`
+                : o.companionName;
               return `
               <tr>
                 <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-light)">${o.id}</td>
-                <td>${o.companionName}</td>
+                <td>${companionCell}</td>
                 <td>${o.bossName}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}${balHtml}</td>
                 <td>${o.orderType}</td>
                 <td>${confLabels[o.confidentiality] || o.confidentiality}</td>

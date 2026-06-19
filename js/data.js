@@ -380,16 +380,27 @@ function downloadFromCloud() {
       }
 
       try {
-        if (data.orders)           orders = data.orders;
-        if (data.rechargeRecords)   rechargeRecords = data.rechargeRecords;
-        if (data.bosses)           bosses = data.bosses;
-        if (data.companions)       companions = data.companions;
-        if (data.settlementHistory) settlementHistory = data.settlementHistory;
-        if (data.nextRechargeId)    nextRechargeId = data.nextRechargeId;
-        if (data.nextOrderId)       nextOrderId = data.nextOrderId;
-        if (data.nextCompanionId)   nextCompanionId = data.nextCompanionId;
-        if (data.nextBossId)        nextBossId = data.nextBossId;
-        if (data.nextSettlementId)  nextSettlementId = data.nextSettlementId;
+        // 安全赋值：清空数组后 push，避免 const/let 问题
+        if (data.orders) {
+          orders.length = 0; orders.push(...data.orders);
+        }
+        if (data.rechargeRecords) {
+          rechargeRecords.length = 0; rechargeRecords.push(...data.rechargeRecords);
+        }
+        if (data.bosses) {
+          bosses.length = 0; bosses.push(...data.bosses);
+        }
+        if (data.companions) {
+          companions.length = 0; companions.push(...data.companions);
+        }
+        if (data.settlementHistory) {
+          settlementHistory.length = 0; settlementHistory.push(...data.settlementHistory);
+        }
+        if (data.nextRechargeId !== undefined)    nextRechargeId = data.nextRechargeId;
+        if (data.nextOrderId !== undefined)       nextOrderId = data.nextOrderId;
+        if (data.nextCompanionId !== undefined)   nextCompanionId = data.nextCompanionId;
+        if (data.nextBossId !== undefined)        nextBossId = data.nextBossId;
+        if (data.nextSettlementId !== undefined)  nextSettlementId = data.nextSettlementId;
 
         if (data.categories) {
           const cat = data.categories;

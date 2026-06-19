@@ -86,10 +86,10 @@ let companions = [
 ];
 
 let bosses = [
-  { id: 'BOSS-001', name: '老板·张总', level: 'VIP3', balance: 5000.00 },
-  { id: 'BOSS-002', name: '老板·李董', level: 'VIP5', balance: 12000.00 },
-  { id: 'BOSS-003', name: '老板·王少', level: 'VIP2', balance: 800.00 },
-  { id: 'BOSS-004', name: '老板·赵姐', level: 'VIP4', balance: 3000.00 },
+  { id: 'BOSS-001', name: '老板·张总', level: 'VIP3', balance: 5000.00, remark: '' },
+  { id: 'BOSS-002', name: '老板·李董', level: 'VIP5', balance: 12000.00, remark: '' },
+  { id: 'BOSS-003', name: '老板·王少', level: 'VIP2', balance: 800.00, remark: '' },
+  { id: 'BOSS-004', name: '老板·赵姐', level: 'VIP4', balance: 3000.00, remark: '' },
 ];
 
 const defaultCategories = {
@@ -573,6 +573,14 @@ const DataStore = {
     if (order && order.status === 'unsettled_boss') {
       order.bossSettled = true;
       order.status       = 'unsettled_companion';
+      // 本店VIP老板：自动扣除余额
+      if (!order.isTempBoss && order.bossId) {
+        const boss = bosses.find(b => b.id === order.bossId);
+        if (boss) {
+          boss.balance = parseFloat((boss.balance - order.amount).toFixed(2));
+          console.log(`[SettleBoss] 老板 ${boss.name} 余额扣除 ¥${order.amount}，剩余 ¥${boss.balance}`);
+        }
+      }
       saveData(`结算老板订单 ${orderId}`);
       return true;
     }
@@ -586,6 +594,14 @@ const DataStore = {
       order.bossSettled = true;
       order.status       = 'unsettled_companion';
       order.completedAt  = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      // 本店VIP老板：自动扣除余额
+      if (!order.isTempBoss && order.bossId) {
+        const boss = bosses.find(b => b.id === order.bossId);
+        if (boss) {
+          boss.balance = parseFloat((boss.balance - order.amount).toFixed(2));
+          console.log(`[CompleteOrder] 老板 ${boss.name} 余额扣除 ¥${order.amount}，剩余 ¥${boss.balance}`);
+        }
+      }
       saveData(`完成订单 ${orderId}`);
       return true;
     }
@@ -778,7 +794,7 @@ const DataStore = {
 
   addBoss(data) {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return null; }
-    const b = { id: `BOSS-${String(nextBossId++).padStart(3, '0')}`, ...data, balance: parseFloat(data.balance) || 0 };
+    const b = { id: `BOSS-${String(nextBossId++).padStart(3, '0')}`, name: data.name, level: data.level, balance: parseFloat(data.balance) || 0, remark: data.remark || '' };
     bosses.push(b);
     saveData(`新增老板 ${b.name}`);
     return b;

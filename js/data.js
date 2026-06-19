@@ -17,17 +17,17 @@
 //  5. 复制配置对象，粘贴到下方
 // ============================================================
 const FIREBASE_CONFIG = {
-  apiKey:      "YOUR_API_KEY",
-  authDomain:  "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:   "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:       "YOUR_APP_ID"
+  apiKey:      "AIzaSyBaU7x4QlHy1M_2TjVIo15mv6-5ivJoXF0",
+  authDomain:  "gaming-club-5cfff.firebaseapp.com",
+  databaseURL: "https://gaming-club-5cfff-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:   "gaming-club-5cfff",
+  storageBucket: "gaming-club-5cfff.firebasestorage.app",
+  messagingSenderId: "679563197432",
+  appId:       "1:679563197432:web:b1bc604ad0252684f4340d"
 };
 
 // 云存档是否启用（填写完上方配置后改为 true）
-const CLOUD_ENABLED = false;
+const CLOUD_ENABLED = true;
 
 // ============================================================
 //  Firebase 初始化（仅云存档启用时加载）

@@ -2227,9 +2227,12 @@ async function renderArchiveHistory(container) {
       <h3>☁️ 云档案历史</h3>
       <p>每次数据改动都会自动生成一份云档案，可随时回溯恢复</p>
     </div>
-    <div class="archive-toolbar" style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
+    <div class="archive-toolbar" style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
       <button class="btn-primary" onclick="refreshArchives()" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">
         🔄 刷新档案列表
+      </button>
+      <button class="btn-primary" onclick="downloadBackupXLSX()" id="btnDownloadBackup" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,var(--success),#059669);border:none;color:#fff;">
+        📥 下载备份（Excel）
       </button>
       <span class="archive-count" id="archiveCount" style="font-size:12px;color:var(--text-muted);"></span>
     </div>
@@ -2374,4 +2377,172 @@ async function confirmRestoreArchive(timestamp, label) {
       }
     }
   });
+}
+
+// ============================================================
+//  下载备份 — 生成 xlsx 文件（4 个工作表）
+//  1) 所有历史订单  2) 打手历史订单  3) 老板余额  4) 仪表板内容
+// ============================================================
+function downloadBackupXLSX() {
+  if (typeof XLSX === 'undefined') {
+    showToast('Excel 库未加载，请检查网络连接', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnDownloadBackup');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;vertical-align:middle;"></span>生成中...`;
+  }
+
+  try {
+    // ====== Sheet 1: 所有历史订单 ======
+    const allOrders = DataStore.getOrders();
+    const statusMap = { 'active': '进行中', 'unsettled_companion': '待结算陪玩', 'unsettled_boss': '待结算老板', 'completed': '已完成' };
+    const orderData = allOrders.map(o => ({
+      '订单ID':       o.id || '',
+      '订单编号':     o.orderNo || '',
+      '陪玩ID':       o.companionId || '',
+      '陪玩名称':     o.companionName || '',
+      '陪玩二ID':     o.companionId2 || '',
+      '陪玩二名称':   o.companionName2 || '',
+      '陪玩二(临时)': o.isTempCompanion2 ? '是' : '否',
+      '老板ID':       o.bossId || '',
+      '老板名称':     o.bossName || '',
+      '老板(临时)':   o.isTempBoss ? '是' : '否',
+      '订单类型':     o.orderType || '',
+      '保密级别':     o.confidentiality || '',
+      '陪玩模式':     o.companionMode || '',
+      '计费方式':     o.pricingCategory || '',
+      '时长(小时)':   o.duration || '',
+      '抽成比例(%)':  o.commissionRate || '',
+      '订单金额':     o.amount || 0,
+      '陪玩所得':     o.companionAmount || 0,
+      '平台抽成':     o.companyAmount || 0,
+      '老板已结算':   o.bossSettled ? '是' : '否',
+      '状态':         statusMap[o.status] || o.status,
+      '开始时间':     o.startTime || '',
+      '创建时间':     o.createdAt || '',
+      '完成时间':     o.completedAt || '',
+      '平台来源':     o.platform || '',
+      '临时陪玩已结算': o.tempSettled ? '是' : '否',
+    }));
+    const ws1 = XLSX.utils.json_to_sheet(orderData);
+    ws1['!cols'] = [
+      { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 10 },
+      { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 14 },
+      { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
+    ];
+
+    // ====== Sheet 2: 打手历史订单（结算记录） ======
+    const settlementRecords = DataStore.getSettlementHistory();
+    const settlementData = settlementRecords.map(r => ({
+      '结算ID':     r.id || '',
+      '陪玩ID':     r.companionId || '',
+      '陪玩名称':   r.companionName || '',
+      '类型':       r.isTemp ? '临时陪玩' : '本店陪玩',
+      '结算金额':   r.amount || 0,
+      '订单总金额': r.totalAmount || 0,
+      '订单数':     r.orderCount || 0,
+      '结算时间':   r.settledAt || '',
+      '包含订单':   (r.orderIds || []).join(', '),
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(settlementData);
+    ws2['!cols'] = [
+      { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 8 }, { wch: 20 }, { wch: 50 },
+    ];
+
+    // ====== Sheet 3: 老板余额 ======
+    const bossList = DataStore.getBosses();
+    const bossData = bossList.map(b => {
+      // 统计该老板的订单数据
+      const bossOrders = allOrders.filter(o => o.bossId === b.id);
+      const totalSpent = bossOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+      const orderCount = bossOrders.length;
+      return {
+        '老板ID':     b.id || '',
+        '名称':       b.name || '',
+        'VIP等级':    b.level || '',
+        '余额':       b.balance || 0,
+        '备注':       b.remark || '',
+        '总订单数':   orderCount,
+        '总消费':     parseFloat(totalSpent.toFixed(2)),
+      };
+    });
+    const ws3 = XLSX.utils.json_to_sheet(bossData);
+    ws3['!cols'] = [
+      { wch: 14 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 30 }, { wch: 10 }, { wch: 14 },
+    ];
+
+    // ====== Sheet 4: 仪表板内容 ======
+    const stats = DataStore.getStats();
+    const ranking = DataStore.getCompanionRanking();
+    const rechargeRecords = DataStore.getRechargeRecords();
+
+    const dashboardData = [
+      { '指标': '═══ 订单统计 ═══', '数值': '', '说明': '' },
+      { '指标': '进行中订单数', '数值': stats.activeCount, '说明': '当前正在进行的订单' },
+      { '指标': '陪玩待结算数', '数值': stats.unsettledCompanionCount, '说明': '等待结算给陪玩的订单' },
+      { '指标': '老板未结算数', '数值': stats.unsettledBossCount, '说明': '等待老板结算的订单' },
+      { '指标': '已完成订单数', '数值': stats.completedCount, '说明': '已完全完成的订单' },
+      { '指标': '临时陪玩待结算', '数值': stats.tempPendingCount, '说明': '临时陪玩待结算的订单' },
+      { '指标': '订单总数', '数值': stats.totalOrders, '说明': '所有订单总数' },
+      { '指标': '', '数值': '', '说明': '' },
+      { '指标': '═══ 金额统计 ═══', '数值': '', '说明': '' },
+      { '指标': '进行中订单流水', '数值': stats.totalActiveAmount, '说明': '进行中订单的总金额' },
+      { '指标': '陪玩待付金额', '数值': stats.totalUnsettledCompanionAmount, '说明': '需要付给陪玩的金额' },
+      { '指标': '老板待收金额', '数值': stats.totalUnsettledBossAmount, '说明': '需要向老板收取的金额' },
+      { '指标': '已完成订单总额', '数值': stats.totalCompletedAmount, '说明': '已完成订单的总金额' },
+      { '指标': '平台总抽成', '数值': stats.totalCommission, '说明': '平台累计抽成收入' },
+      { '指标': '', '数值': '', '说明': '' },
+      { '指标': '═══ 充值统计 ═══', '数值': '', '说明': '' },
+      { '指标': '充值记录数', '数值': rechargeRecords.length, '说明': '总充值记录条数' },
+      { '指标': '充值总额', '数值': rechargeRecords.filter(r => r.status === 'success').reduce((s, r) => s + r.amount, 0), '说明': '成功充值的总金额' },
+      { '指标': '', '数值': '', '说明': '' },
+      { '指标': '═══ 打手/陪玩排行 ═══', '数值': '', '说明': '' },
+      ...ranking.map((r, i) => ({
+        '指标': `第${i + 1}名 ${r.companionName}`,
+        '数值': r.orderCount,
+        '说明': `${r.level || ''} · 评级 ${r.rating || 0} · 总流水 ¥${(r.totalAmount || 0).toFixed(2)}`,
+      })),
+      { '指标': '', '数值': '', '说明': '' },
+      { '指标': '═══ 老板余额一览 ═══', '数值': '', '说明': '' },
+      ...bossList.map(b => ({
+        '指标': b.name,
+        '数值': b.balance || 0,
+        '说明': `${b.level || ''} ${b.remark ? '· ' + b.remark : ''}`,
+      })),
+      { '指标': '', '数值': '', '说明': '' },
+      { '指标': '═══ 备份信息 ═══', '数值': '', '说明': '' },
+      { '指标': '备份时间', '数值': new Date().toLocaleString('zh-CN'), '说明': '' },
+      { '指标': '操作人', '数值': DataStore.getAdminAccount() || '未知', '说明': '' },
+      { '指标': '系统版本', '数值': 'v4.2.0', '说明': '野象电竞俱乐部管理系统' },
+    ];
+    const ws4 = XLSX.utils.json_to_sheet(dashboardData);
+    ws4['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 50 }];
+
+    // ====== 创建工作簿并写入文件 ======
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws1, '所有历史订单');
+    XLSX.utils.book_append_sheet(wb, ws2, '打手历史订单');
+    XLSX.utils.book_append_sheet(wb, ws3, '老板余额');
+    XLSX.utils.book_append_sheet(wb, ws4, '仪表板内容');
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const fileName = `野象电竞俱乐部_数据备份_${dateStr}_${timeStr}.xlsx`;
+
+    XLSX.writeFile(wb, fileName);
+    showToast(`备份文件已下载：${fileName}`, 'success');
+  } catch (err) {
+    console.error('[Backup] 导出失败', err);
+    showToast('导出失败：' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '📥 下载备份（Excel）';
+    }
+  }
 }

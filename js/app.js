@@ -2533,6 +2533,44 @@ function renderArchiveOrderTable() {
   `;
 }
 
+// ============ 结算历史表格（用于数据备份页面）============
+function renderSettlementHistoryTable() {
+  const history = DataStore.getSettlementHistory();
+  if (history.length === 0) {
+    return '<div class="empty-state" style="padding:32px 0"><div class="empty-icon">💰</div><div class="empty-text">暂无结算记录</div></div>';
+  }
+  return `
+    <div class="table-container" style="margin-top:0">
+      <div class="table-wrapper" style="overflow-x:auto">
+        <table class="archive-order-table">
+          <thead>
+            <tr>
+              <th>结算ID</th>
+              <th>陪玩名称</th>
+              <th>结算金额</th>
+              <th>订单数</th>
+              <th>结算时间</th>
+              <th>操作人</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${history.map(h => `
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-light)">${h.id}</td>
+                <td>${h.companionName}${h.isTemp ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</td>
+                <td style="font-weight:700;color:var(--success)">¥${(h.amount||0).toLocaleString()}</td>
+                <td>${h.orderCount||0}</td>
+                <td style="font-size:11px;color:var(--text-muted)">${(h.settledAt||'').substring(0,16)}</td>
+                <td style="font-size:11px;color:var(--text-secondary)">${h.operator||'--'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 async function renderArchiveHistory(container) {
   container.innerHTML = `
     <div class="page-header">
@@ -2559,8 +2597,16 @@ async function renderArchiveHistory(container) {
       </div>
     </div>
 
-    <!-- 历史订单详情 -->
-    <div class="archive-order-section">
+    <!-- 陪玩明细结算备份 -->
+    <div class="archive-settlement-section" style="margin-bottom:32px;">
+      <h3 class="section-title" style="font-size:15px;margin-bottom:12px;">💰 陪玩明细结算备份（共 <span id="archiveSettlementCount">0</span> 条）</h3>
+      <div id="archiveSettlementTableContainer">
+        ${renderSettlementHistoryTable()}
+      </div>
+    </div>
+
+    <!-- 历史订单详情（隐藏但功能保留） -->
+    <div class="archive-order-section" style="display:none;">
       <h3 class="section-title" style="font-size:15px;margin-bottom:12px;">📋 历史订单详情（共 <span id="archiveOrderCount">0</span> 条，含平台抽成金额）</h3>
       <div id="archiveOrderTableContainer">
         ${renderArchiveOrderTable()}
@@ -2569,24 +2615,33 @@ async function renderArchiveHistory(container) {
   `;
 
   await refreshArchives();
-  // 更新订单数量
+  // 更新订单数量和结算记录数量
   const countEl = document.getElementById('archiveOrderCount');
   if (countEl) countEl.textContent = DataStore.getOrders().length;
+  const settlementCountEl = document.getElementById('archiveSettlementCount');
+  if (settlementCountEl) settlementCountEl.textContent = DataStore.getSettlementHistory().length;
 }
 
-// 刷新档案列表 + 订单详情
+// 刷新档案列表 + 订单详情 + 结算历史
 async function refreshArchiveOrderView() {
   // 刷新云档案
   await refreshArchives();
-  // 刷新订单详情表格
+  // 刷新订单详情表格（隐藏但功能保留）
   const container = document.getElementById('archiveOrderTableContainer');
   if (container) {
     container.innerHTML = renderArchiveOrderTable();
   }
-  // 更新订单数量
+  // 刷新结算历史表格
+  const settlementContainer = document.getElementById('archiveSettlementTableContainer');
+  if (settlementContainer) {
+    settlementContainer.innerHTML = renderSettlementHistoryTable();
+  }
+  // 更新订单数量和结算记录数量
   const countEl = document.getElementById('archiveOrderCount');
   if (countEl) countEl.textContent = DataStore.getOrders().length;
-  showToast('档案列表与订单详情已刷新', 'success');
+  const settlementCountEl = document.getElementById('archiveSettlementCount');
+  if (settlementCountEl) settlementCountEl.textContent = DataStore.getSettlementHistory().length;
+  showToast('档案列表与结算记录已刷新', 'success');
 }
 
 async function refreshArchives() {

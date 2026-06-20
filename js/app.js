@@ -2439,7 +2439,7 @@ function resetAllCategories() {
   }});
 }
 
-// ============ Toast 提示 ============
+// ============ Toast 提示（小巧透明版） ============
 function showToast(message, type, opts = {}) {
   let container = document.querySelector('.toast-container');
   if (!container) {
@@ -2451,31 +2451,13 @@ function showToast(message, type, opts = {}) {
   toast.className = `toast toast-${type}`;
 
   if (opts.undoable) {
-    // 带撤销按钮的 Toast
-    toast.style.display = 'flex';
-    toast.style.alignItems = 'center';
-    toast.style.gap = '12px';
-    toast.style.justifyContent = 'space-between';
-
+    toast.classList.add('toast-undoable');
     const msgSpan = document.createElement('span');
     msgSpan.textContent = message;
 
     const undoBtn = document.createElement('button');
     undoBtn.textContent = '撤销';
-    undoBtn.style.cssText = `
-      background: rgba(255,255,255,0.25);
-      border: 1px solid rgba(255,255,255,0.5);
-      border-radius: 6px;
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 3px 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.2s;
-    `;
-    undoBtn.onmouseenter = () => undoBtn.style.background = 'rgba(255,255,255,0.4)';
-    undoBtn.onmouseleave = () => undoBtn.style.background = 'rgba(255,255,255,0.25)';
+    undoBtn.className = 'toast-undo-btn';
     undoBtn.onclick = () => {
       const label = DataStore.undoLast();
       toast.remove();
@@ -2503,14 +2485,62 @@ function showToast(message, type, opts = {}) {
 // ============ 云档案历史 ============
 let _archivesCache = [];
 
+// 渲染数据备份页面中的订单详情表格（含平台抽成）
+function renderArchiveOrderTable() {
+  const allOrders = DataStore.getOrders();
+  const statusMap = { 'active': '进行中', 'unsettled_companion': '陪玩未结算', 'unsettled_boss': '老板未结算', 'completed': '已完成' };
+  const confMap = { '普通': '', '机密': '💛', '绝密': '❤️' };
+  if (allOrders.length === 0) {
+    return '<div class="empty-state" style="padding:32px 0"><div class="empty-icon">📋</div><div class="empty-text">暂无订单数据</div></div>';
+  }
+  return `
+    <div class="table-container" style="margin-top:0">
+      <div class="table-wrapper" style="overflow-x:auto">
+        <table class="archive-order-table">
+          <thead>
+            <tr>
+              <th>订单ID</th>
+              <th>陪玩名称</th>
+              <th>老板名称</th>
+              <th>订单类型</th>
+              <th>金额</th>
+              <th>抽成%</th>
+              <th>平台抽成</th>
+              <th>陪玩所得</th>
+              <th>状态</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allOrders.map(o => `
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-light)">${o.id}</td>
+                <td>${o.companionName||''}${o.isTempCompanion1 ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}${o.companionName2 ? '<br><span style="font-size:11px;color:var(--success)">二:' + o.companionName2 + (o.isTempCompanion2 ? '<span style="font-size:10px;color:var(--warning)">临</span>' : '') + '</span>' : ''}</td>
+                <td>${o.bossName||''}${o.isTempBoss ? ' <span style="font-size:10px;color:var(--warning)">临</span>' : ''}</td>
+                <td>${o.orderType||''}</td>
+                <td style="font-weight:700;color:var(--accent-light)">¥${(o.amount||0).toLocaleString()}</td>
+                <td>${o.commissionRate||0}%</td>
+                <td style="font-weight:700;color:var(--info)">¥${(o.companyAmount||0).toLocaleString()}</td>
+                <td style="font-weight:700;color:var(--success)">¥${(o.companionAmount||0).toLocaleString()}</td>
+                <td><span class="badge ${o.status === 'completed' ? 'badge-settled' : o.status === 'active' ? 'badge-active' : o.status === 'unsettled_companion' ? 'badge-unsettled' : 'badge-danger'}">${statusMap[o.status]||o.status}</span></td>
+                <td style="font-size:11px;color:var(--text-muted)">${(o.startTime||'').substring(0,16)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 async function renderArchiveHistory(container) {
   container.innerHTML = `
     <div class="page-header">
-      <h3>☁️ 云档案历史</h3>
-      <p>每次数据改动都会自动生成一份云档案，可随时回溯恢复</p>
+      <h3>☁️ 数据备份</h3>
+      <p>云档案历史记录 + 订单详情（含平台抽成金额）</p>
     </div>
     <div class="archive-toolbar" style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
-      <button class="btn-primary" onclick="refreshArchives()" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">
+      <button class="btn-primary" onclick="refreshArchiveOrderView()" id="btnRefreshArchive" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;">
         🔄 刷新档案列表
       </button>
       <button class="btn-primary" onclick="downloadBackupXLSX()" id="btnDownloadBackup" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,var(--success),#059669);border:none;color:#fff;">
@@ -2518,14 +2548,45 @@ async function renderArchiveHistory(container) {
       </button>
       <span class="archive-count" id="archiveCount" style="font-size:12px;color:var(--text-muted);"></span>
     </div>
-    <div class="archive-list" id="archiveList">
-      <div class="loading-placeholder" style="text-align:center;padding:60px 0;color:var(--text-muted);">
-        正在加载云档案...
+
+    <!-- 云档案列表 -->
+    <div class="archive-section" style="margin-bottom:32px;">
+      <h3 class="section-title" style="font-size:15px;margin-bottom:12px;">☁️ 云档案历史</h3>
+      <div class="archive-list" id="archiveList">
+        <div class="loading-placeholder" style="text-align:center;padding:60px 0;color:var(--text-muted);">
+          正在加载云档案...
+        </div>
+      </div>
+    </div>
+
+    <!-- 历史订单详情 -->
+    <div class="archive-order-section">
+      <h3 class="section-title" style="font-size:15px;margin-bottom:12px;">📋 历史订单详情（共 <span id="archiveOrderCount">0</span> 条，含平台抽成金额）</h3>
+      <div id="archiveOrderTableContainer">
+        ${renderArchiveOrderTable()}
       </div>
     </div>
   `;
 
   await refreshArchives();
+  // 更新订单数量
+  const countEl = document.getElementById('archiveOrderCount');
+  if (countEl) countEl.textContent = DataStore.getOrders().length;
+}
+
+// 刷新档案列表 + 订单详情
+async function refreshArchiveOrderView() {
+  // 刷新云档案
+  await refreshArchives();
+  // 刷新订单详情表格
+  const container = document.getElementById('archiveOrderTableContainer');
+  if (container) {
+    container.innerHTML = renderArchiveOrderTable();
+  }
+  // 更新订单数量
+  const countEl = document.getElementById('archiveOrderCount');
+  if (countEl) countEl.textContent = DataStore.getOrders().length;
+  showToast('档案列表与订单详情已刷新', 'success');
 }
 
 async function refreshArchives() {

@@ -70,6 +70,42 @@ function isLoggedIn() {
   return sessionStorage.getItem('isLoggedIn') === 'true';
 }
 
+// ============================================================
+//  撤销快照（最多保留 10 条）
+// ============================================================
+const _undoStack = [];
+const UNDO_MAX = 10;
+
+function _captureSnapshot(label) {
+  const snapshot = {
+    label,
+    timestamp: Date.now(),
+    orders:            JSON.parse(JSON.stringify(orders)),
+    bosses:            JSON.parse(JSON.stringify(bosses)),
+    settlementHistory: JSON.parse(JSON.stringify(settlementHistory)),
+    nextSettlementId,
+  };
+  _undoStack.push(snapshot);
+  if (_undoStack.length > UNDO_MAX) _undoStack.shift(); // 淘汰最旧的
+}
+
+function _restoreSnapshot(snapshot) {
+  orders.length = 0;            orders.push(...snapshot.orders);
+  bosses.length = 0;            bosses.push(...snapshot.bosses);
+  settlementHistory.length = 0; settlementHistory.push(...snapshot.settlementHistory);
+  nextSettlementId = snapshot.nextSettlementId;
+}
+
+function getUndoStack() { return _undoStack; }
+
+function undoLast() {
+  if (_undoStack.length === 0) return null;
+  const snapshot = _undoStack.pop();
+  _restoreSnapshot(snapshot);
+  saveData('撤销操作: ' + snapshot.label);
+  return snapshot.label;
+}
+
 function getAdminAccount() {
   return sessionStorage.getItem('adminAccount') || '';
 }
@@ -577,6 +613,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return false; }
     const idx = orders.findIndex(o => o.id === orderId);
     if (idx === -1) return false;
+    _captureSnapshot(`删除订单 ${orderId}`);
     orders.splice(idx, 1);
     saveData(`删除订单 ${orderId}`);
     return true;
@@ -593,6 +630,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return false; }
     const order = orders.find(o => o.id === orderId);
     if (order && order.status === 'unsettled_companion') {
+      _captureSnapshot(`结算陪玩 ${orderId}`);
       order.status     = 'completed';
       order.completedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
       saveData(`结算陪玩订单 ${orderId}`);
@@ -605,6 +643,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return false; }
     const order = orders.find(o => o.id === orderId);
     if (order && order.status === 'unsettled_boss') {
+      _captureSnapshot(`老板结单 ${orderId}`);
       order.bossSettled = true;
       order.status       = 'unsettled_companion';
       // 本店VIP老板：自动扣除余额
@@ -625,6 +664,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return false; }
     const order = orders.find(o => o.id === orderId);
     if (order && order.status === 'active') {
+      _captureSnapshot(`结单 ${orderId}`);
       order.bossSettled = true;
       order.status       = 'unsettled_companion';
       order.completedAt  = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -646,6 +686,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return null; }
     const unsettled = orders.filter(o => o.companionId === companionId && o.status === 'unsettled_companion');
     if (unsettled.length === 0) return null;
+    _captureSnapshot(`批量结算陪玩 ${companionId}`);
 
     const totalCompanionAmount = unsettled.reduce((sum, o) => sum + o.companionAmount, 0);
     const totalAmount         = unsettled.reduce((sum, o) => sum + o.amount, 0);
@@ -673,6 +714,7 @@ const DataStore = {
     if (!isLoggedIn()) { showToast('请先登录后再操作', 'error'); return null; }
     const toSettle = orders.filter(o => o.companionId === companionId && o.status === 'unsettled_companion' && orderIds.includes(o.id));
     if (toSettle.length === 0) return null;
+    _captureSnapshot(`选择结算陪玩 ${companionId}`);
 
     const totalCompanionAmount = parseFloat(toSettle.reduce((sum, o) => sum + o.companionAmount, 0).toFixed(2));
     const totalAmount         = parseFloat(toSettle.reduce((sum, o) => sum + o.amount, 0).toFixed(2));
@@ -753,6 +795,7 @@ const DataStore = {
        (o.isTempCompanion2 && o.companionName2 === tempName && !o.tempSettled))
     );
     if (toSettle.length === 0) return null;
+    _captureSnapshot(`结算临时陪玩 ${tempName}`);
 
     // 每个订单可能匹配多个位置（陪玩一和陪玩二都是同一临时陪玩），每个位置各得一份 companionAmount
     const totalCompanionAmount = parseFloat(toSettle.reduce((sum, o) => {
@@ -838,6 +881,11 @@ const DataStore = {
   getBosses()                      { return bosses; },
   getCompanions()                   { return companions; },
   getRechargeMethods()              { return rechargeMethods; },
+
+  // 撤销支持
+  canUndo()                         { return _undoStack.length > 0; },
+  getLastUndoLabel()                { return _undoStack.length > 0 ? _undoStack[_undoStack.length - 1].label : null; },
+  undoLast()                        { return undoLast(); },
 
   getCategories()                   { return { orderTypes, companionModes, pricingCategories, confidentialityOptions, durations, rechargeMethods, platforms }; },
   getDefaultCategories()             { return JSON.parse(JSON.stringify(defaultCategories)); },

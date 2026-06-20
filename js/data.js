@@ -247,10 +247,19 @@ function saveData(changeSummary) {
   // 自动上传到云存档
   if (CLOUD_ENABLED && !window.__DISABLE_AUTO_UPLOAD) {
     uploadToCloud().then(ok => {
-      if (ok) {
-        console.log('[Auto Upload] 数据已自动上传到云存档');
-      }
+      if (ok) console.log('[Auto Upload] 数据已自动上传到云存档');
     });
+  }
+
+  // 自动保存云档案（最多每分钟一次，避免频繁写入）
+  if (CLOUD_ENABLED && changeSummary && !window.__DISABLE_AUTO_UPLOAD) {
+    const now = Date.now();
+    if (now - _lastArchiveSave > 60000) {
+      _lastArchiveSave = now;
+      saveArchiveToCloud(changeSummary).then(ok => {
+        if (ok) console.log('[Auto Archive] 档案已保存：', changeSummary);
+      });
+    }
   }
 }
 
@@ -489,6 +498,96 @@ function getCloudUpdateInfo() {
 }
 
 // ============================================================
+//  云档案历史（自动备份，最多保留 100 条）
+// ============================================================
+let _lastArchiveSave = 0;
+
+async function saveArchiveToCloud(summary) {
+  if (!CLOUD_ENABLED) return false;
+  const ok = initFirebase();
+  if (!ok && !_firebaseReady) return false;
+  const db = _database || firebase.database();
+  const userEmail = getAdminAccount() || '未知用户';
+  const timestamp = Date.now();
+  const payload = {
+    summary,
+    userEmail,
+    timestamp,
+    data: {
+      orders:           JSON.parse(JSON.stringify(orders)),
+      companions:       JSON.parse(JSON.stringify(companions)),
+      bosses:           JSON.parse(JSON.stringify(bosses)),
+      rechargeRecords:  JSON.parse(JSON.stringify(rechargeRecords)),
+      settlementHistory: JSON.parse(JSON.stringify(settlementHistory)),
+      categories: {
+        orderTypes, companionModes, pricingCategories,
+        confidentialityOptions, durations, rechargeMethods, platforms
+      }
+    }
+  };
+  return new Promise((resolve) => {
+    db.ref('gaming_club_archives').child(String(timestamp)).set(payload, (err) => {
+      if (err) { console.error('[Archive] 保存失败', err); resolve(false); }
+      else {
+        // 只保留最近 100 条
+        db.ref('gaming_club_archives').once('value', snap => {
+          const keys = Object.keys(snap.val() || {}).map(Number).sort((a, b) => b - a);
+          if (keys.length > 100) keys.slice(100).forEach(k => db.ref('gaming_club_archives').child(String(k)).remove());
+        });
+        resolve(true);
+      }
+    });
+  });
+}
+
+async function getArchivesFromCloud() {
+  if (!CLOUD_ENABLED) return [];
+  const ok = initFirebase();
+  if (!ok && !_firebaseReady) return [];
+  const db = _database || firebase.database();
+  return new Promise((resolve) => {
+    db.ref('gaming_club_archives').once('value', snap => {
+      const val = snap.val() || {};
+      const list = Object.values(val).sort((a, b) => b.timestamp - a.timestamp);
+      resolve(list);
+    }, () => resolve([]));
+  });
+}
+
+async function restoreArchiveFromCloud(timestamp) {
+  if (!CLOUD_ENABLED) return false;
+  const ok = initFirebase();
+  if (!ok && !_firebaseReady) return false;
+  const db = _database || firebase.database();
+  return new Promise((resolve) => {
+    db.ref('gaming_club_archives').child(String(timestamp)).once('value', snap => {
+      const arch = snap.val();
+      if (!arch || !arch.data) { resolve(false); return; }
+      try {
+        const d = arch.data;
+        if (d.orders)           { orders.length = 0;           orders.push(...d.orders); }
+        if (d.companions)        { companions.length = 0;        companions.push(...d.companions); }
+        if (d.bosses)            { bosses.length = 0;            bosses.push(...d.bosses); }
+        if (d.rechargeRecords)   { rechargeRecords.length = 0;   rechargeRecords.push(...d.rechargeRecords); }
+        if (d.settlementHistory){ settlementHistory.length = 0; settlementHistory.push(...d.settlementHistory); }
+        if (d.categories) {
+          const c = d.categories;
+          if (c.orderTypes)           { orderTypes.length = 0;           orderTypes.push(...c.orderTypes); }
+          if (c.companionModes)       { companionModes.length = 0;       companionModes.push(...c.companionModes); }
+          if (c.pricingCategories)     { pricingCategories.length = 0;     pricingCategories.push(...c.pricingCategories); }
+          if (c.confidentialityOptions){ confidentialityOptions.length = 0; confidentialityOptions.push(...c.confidentialityOptions); }
+          if (c.durations)             { durations.length = 0;             durations.push(...c.durations); }
+          if (c.rechargeMethods)       { rechargeMethods.length = 0;       rechargeMethods.push(...c.rechargeMethods); }
+          if (c.platforms)             { platforms.length = 0;             platforms.push(...c.platforms); }
+        }
+        _saveLocal();
+        resolve(true);
+      } catch (e) { console.error('[Archive] 恢复失败', e); resolve(false); }
+    }, () => resolve(false));
+  });
+}
+
+// ============================================================
 //  DataStore — 所有数据操作接口
 //  未登录时所有写操作会被阻止
 // ============================================================
@@ -501,6 +600,11 @@ const DataStore = {
   async uploadToCloud()   { return await uploadToCloud(); },
   async downloadFromCloud() { return await downloadFromCloud(); },
   isCloudEnabled()        { return CLOUD_ENABLED && _firebaseReady; },
+
+  // 云档案历史
+  async getArchives()                { return await getArchivesFromCloud(); },
+  async saveArchive(summary)         { return await saveArchiveToCloud(summary); },
+  async restoreArchive(timestamp)    { return await restoreArchiveFromCloud(timestamp); },
 
   // ====== 订单 CRUD ======
   addOrder(data) {

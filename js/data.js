@@ -808,6 +808,7 @@ const DataStore = {
       orderCount:       unsettled.length,
       settledAt:        now,
       orderIds:         unsettled.map(o => o.id),
+      operator:         getAdminAccount() || '未知用户',
     };
     settlementHistory.unshift(record);
     saveData(`批量结算陪玩 ${companionId}`);
@@ -836,6 +837,7 @@ const DataStore = {
       orderCount:       toSettle.length,
       settledAt:        now,
       orderIds:         toSettle.map(o => o.id),
+      operator:         getAdminAccount() || '未知用户',
     };
     settlementHistory.unshift(record);
     saveData(`选择结算陪玩 ${companionId}`);
@@ -927,6 +929,7 @@ const DataStore = {
       orderCount:       toSettle.length,
       settledAt:        now,
       orderIds:         toSettle.map(o => o.id),
+      operator:         getAdminAccount() || '未知用户',
     };
     settlementHistory.unshift(record);
     saveData(`结算临时陪玩 ${tempName}`);

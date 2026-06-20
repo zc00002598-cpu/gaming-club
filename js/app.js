@@ -40,6 +40,30 @@ function updateBadges() {
   updateBadge('badgeUnsettledC', stats.unsettledCompanionCount);
   updateBadge('badgeUnsettledB', stats.unsettledBossCount);
   updateBadge('badgeTempC', stats.tempPendingCount || 0);
+
+  // 更新全局撤销按钮
+  const undoBtn = document.getElementById('btnGlobalUndo');
+  const undoLabel = document.getElementById('btnUndoLabel');
+  if (undoBtn) {
+    const canUndo = DataStore.canUndo();
+    undoBtn.style.display = canUndo ? '' : 'none';
+    if (canUndo && undoLabel) {
+      const lastLabel = DataStore.getLastUndoLabel();
+      undoLabel.textContent = lastLabel ? `撤销（${lastLabel}）` : '撤销';
+    }
+  }
+}
+
+function handleGlobalUndo() {
+  if (!DataStore.canUndo()) {
+    showToast('没有可撤销的操作', 'info');
+    return;
+  }
+  const label = DataStore.undoLast();
+  saveData();
+  updateBadges();
+  switchTab(currentTab);
+  showToast(`已撤销：${label}`, 'info');
 }
 
 function refreshData() {
@@ -999,14 +1023,14 @@ function settleTempCompanionSelected(tempKey) {
 
   showConfirm({
     title: '💰 结算临时陪玩',
-    message: `确认结算临时陪玩「${tempName}」的 ${toSettleOrders.length} 笔订单？\n\n结算金额（抽成后）：¥${totalAmount.toLocaleString()}\n\n${remainingCount > 0 ? '剩余 ' + remainingCount + ' 笔订单将继续保留在待结算列表。' : '所有待结算订单将全部结清。'}`,
+    message: `确认结算临时陪玩「${tempName}」的 ${toSettleOrders.length} 笔订单？\n\n结算金额（抽成后）：¥${totalAmount.toLocaleString()}\n\n${remainingCount > 0 ? '剩余 ' + remainingCount + ' 笔订单将继续保留在待结算列表。' : '所有待结算订单将全部结清。'}\n\n结算后可在提示中点「撤销」立即撤回。`,
     onConfirm: () => {
       const record = DataStore.settleTempOrdersByIds(tempName, toSettleIds);
       if (record) {
         saveData();
         updateBadges();
         switchTab('temp-companion');
-        showToast(`已结算 ¥${record.amount.toLocaleString()}（${record.orderCount} 笔）给 临时陪玩 ${tempName}`, 'success');
+        showToast(`已结算 ¥${record.amount.toLocaleString()}（${record.orderCount} 笔）给 临时陪玩 ${tempName}`, 'success', { undoable: true, duration: 5000 });
       }
     }
   });
@@ -1252,45 +1276,51 @@ function doRecharge() {
 
 // ============ 订单操作 ============
 function completeActiveOrder(orderId) {
-  showConfirm({
-    title: '确认结单',
-    message: '确认该订单已结单？结单后订单将进入陪玩待结算状态。',
+  const order = DataStore.getOrder(orderId);
+  if (!order) return;
+  showSettleConfirm({
+    type: 'complete',
+    order,
     onConfirm: () => {
       if (DataStore.completeOrder(orderId)) {
         saveData();
         updateBadges();
         switchTab(currentTab);
-        showToast('订单已结单，等待结算给陪玩', 'success');
+        showToast('订单已结单，等待结算给陪玩', 'success', { undoable: true, duration: 5000 });
       }
     }
   });
 }
 
 function settleBossOrder(orderId) {
-  showConfirm({
-    title: '确认老板结单',
-    message: '确认该老板已完成结单？结单后订单将进入陪玩待结算状态。',
+  const order = DataStore.getOrder(orderId);
+  if (!order) return;
+  showSettleConfirm({
+    type: 'settle_boss',
+    order,
     onConfirm: () => {
       if (DataStore.settleBoss(orderId)) {
         saveData();
         updateBadges();
         switchTab(currentTab);
-        showToast('老板已结单，等待公司结算给陪玩', 'success');
+        showToast('老板已结单，等待公司结算给陪玩', 'success', { undoable: true, duration: 5000 });
       }
     }
   });
 }
 
 function settleCompanionOrder(orderId) {
-  showConfirm({
-    title: '确认结算给陪玩',
-    message: '确认将该订单结算给陪玩？结算后订单将标记为已完成。',
+  const order = DataStore.getOrder(orderId);
+  if (!order) return;
+  showSettleConfirm({
+    type: 'settle_companion',
+    order,
     onConfirm: () => {
       if (DataStore.settleCompanion(orderId)) {
         saveData();
         updateBadges();
         switchTab(currentTab);
-        showToast('已结算给陪玩，订单已完成', 'success');
+        showToast('已结算给陪玩，订单已完成', 'success', { undoable: true, duration: 5000 });
       }
     }
   });
@@ -1304,16 +1334,19 @@ function settleCompanionAll(companionId) {
   }
   const totalAmount = unsettled.reduce((sum, o) => sum + o.companionAmount, 0);
   const comp = DataStore.getCompanions().find(c => c.id === companionId);
-  showConfirm({
-    title: '💰 确认结算',
-    message: `确认结算给「${comp?.name || companionId}」？\n\n待结算 ${unsettled.length} 笔订单，合计 ¥${totalAmount.toLocaleString()}（已扣除公司抽成）。\n\n结算后该打手待结算金额将清零，所有订单标记为已完成。`,
+  showSettleConfirm({
+    type: 'batch',
+    companionName: comp?.name || companionId,
+    orders: unsettled,
+    totalAmount,
+    remainingCount: 0,
     onConfirm: () => {
       const record = DataStore.settleOrdersByCompanion(companionId);
       if (record) {
         saveData();
         updateBadges();
         switchTab('unsettled-companion');
-        showToast(`已结算 ¥${record.amount.toLocaleString()} 给 ${record.companionName}`, 'success');
+        showToast(`已结算 ¥${record.amount.toLocaleString()} 给 ${record.companionName}`, 'success', { undoable: true, duration: 5000 });
       }
     }
   });
@@ -1389,16 +1422,19 @@ function settleCompanionSelected(companionId) {
   const totalAmount = selectedOrders.reduce((sum, o) => sum + o.companionAmount, 0);
   const remainingCount = unsettled.length - selectedOrders.length;
 
-  showConfirm({
-    title: '💰 部分结算',
-    message: `确认结算「${comp?.name || companionId}」的 ${selectedOrders.length} 笔订单？\n\n结算金额（抽成后）：¥${totalAmount.toLocaleString()}\n\n${remainingCount > 0 ? '剩余 ' + remainingCount + ' 笔订单将继续保留在待结算列表。' : '所有待结算订单将全部结清。'}`,
+  showSettleConfirm({
+    type: 'batch',
+    companionName: comp?.name || companionId,
+    orders: selectedOrders,
+    totalAmount,
+    remainingCount,
     onConfirm: () => {
       const record = DataStore.settleOrdersByIds(companionId, selectedIds);
       if (record) {
         saveData();
         updateBadges();
         switchTab('unsettled-companion');
-        showToast(`已结算 ¥${record.amount.toLocaleString()}（${record.orderCount} 笔）给 ${record.companionName}`, 'success');
+        showToast(`已结算 ¥${record.amount.toLocaleString()}（${record.orderCount} 笔）给 ${record.companionName}`, 'success', { undoable: true, duration: 5000 });
       }
     }
   });
@@ -1673,13 +1709,13 @@ function deleteOrder(orderId) {
   const order = DataStore.getOrder(orderId);
   showConfirm({
     title: '⚠️ 删除订单',
-    message: `确认删除订单 ${order.id}（${order.orderType} - ${order.companionName}）？此操作不可撤销。`,
+    message: `确认删除订单 ${order.id}（${order.orderType} - ${order.companionName}）？\n\n删除后可在 5 秒内点击提示中的「撤销」按钮恢复。`,
     onConfirm: () => {
       if (DataStore.deleteOrder(orderId)) {
         saveData();
         updateBadges();
         switchTab(currentTab);
-        showToast('订单已删除', 'info');
+        showToast(`订单 ${orderId} 已删除`, 'info', { undoable: true, duration: 5000 });
       }
     }
   });
@@ -1816,6 +1852,127 @@ function showConfirm({ title, message, onConfirm }) {
     if (onConfirm) onConfirm();
   });
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
+}
+
+// ============ 结算确认弹窗（带订单详情）============
+// type: 'complete'(结单) | 'settle_boss'(老板结单) | 'settle_companion'(结算给陪玩) | 'batch'(批量结算)
+function showSettleConfirm({ type, order, companionName, orders: batchOrders, totalAmount, remainingCount, onConfirm }) {
+  const typeConfig = {
+    complete:          { icon: '📋', title: '确认结单', btnText: '确认结单', btnClass: 'btn-success' },
+    settle_boss:       { icon: '💵', title: '老板结单确认', btnText: '确认老板结单', btnClass: 'btn-primary' },
+    settle_companion:  { icon: '💰', title: '结算给陪玩', btnText: '确认结算', btnClass: 'btn-success' },
+    batch:             { icon: '💰', title: '批量结算确认', btnText: `确认结算 ¥${(totalAmount||0).toLocaleString()}`, btnClass: 'btn-success' },
+  };
+  const cfg = typeConfig[type] || typeConfig.complete;
+
+  let detailHtml = '';
+
+  if (order) {
+    // 单笔订单详情
+    const bossObj = (!order.isTempBoss && order.bossId) ? DataStore.getBosses().find(b => b.id === order.bossId) : null;
+    const c1Tag = order.isTempCompanion1 ? ' <span style="font-size:10px;color:var(--warning);font-weight:700">临</span>' : '';
+    const c2Html = order.companionId2
+      ? `<br><span style="color:var(--success);font-size:12px">陪玩二：${order.companionName2}${order.isTempCompanion2 ? ' <span style="color:var(--warning);font-size:10px">临</span>' : ''}</span>`
+      : '';
+
+    const statusAfter = {
+      complete:         '陪玩待结算',
+      settle_boss:      '陪玩待结算',
+      settle_companion: '✅ 已完成',
+    }[type] || '';
+
+    const extraRow = type === 'settle_boss' && bossObj
+      ? `<tr><td style="color:var(--text-muted)">老板余额（扣后）</td><td style="color:var(--warning);font-weight:700">¥${(bossObj.balance - order.amount).toLocaleString()}</td></tr>`
+      : (type === 'settle_companion'
+        ? `<tr><td style="color:var(--text-muted)">陪玩所得（抽成后）</td><td style="color:var(--success);font-weight:700;font-size:16px">¥${order.companionAmount.toLocaleString()}</td></tr>`
+        : '');
+
+    detailHtml = `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0;width:42%">订单编号</td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-light)">${order.id}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">陪玩</td>
+            <td>${order.companionName}${c1Tag}${c2Html}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">老板</td>
+            <td>${order.bossName}${order.isTempBoss ? ' <span style="color:var(--warning);font-size:10px">临</span>' : ''}${bossObj ? ` <span style="color:var(--success);font-size:11px">余额¥${bossObj.balance?.toLocaleString()}</span>` : ''}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">订单类型</td>
+            <td>${order.orderType} · ${order.companionMode}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">订单金额</td>
+            <td style="font-weight:700;color:var(--accent-light);font-size:16px">¥${order.amount.toLocaleString()}</td>
+          </tr>
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">平台抽成</td>
+            <td>${order.commissionRate}%（¥${order.companyAmount?.toLocaleString?.() || ''}）</td>
+          </tr>
+          ${extraRow}
+          <tr>
+            <td style="color:var(--text-muted);padding:5px 0">操作后状态</td>
+            <td style="color:var(--success);font-weight:600">${statusAfter}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;text-align:center">⚠️ 确认后可在提示中点「撤销」立即撤回</p>
+    `;
+  } else if (batchOrders) {
+    // 批量结算详情
+    detailHtml = `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0;max-height:220px;overflow-y:auto">
+        <div style="font-weight:600;margin-bottom:10px;font-size:13px">结算明细（${batchOrders.length} 笔订单）</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          ${batchOrders.map(o => `
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="color:var(--text-muted);padding:4px 0;font-family:'JetBrains Mono',monospace;font-size:11px">${o.id}</td>
+              <td style="padding:4px 6px">${o.orderType}</td>
+              <td style="padding:4px 6px">${o.bossName}</td>
+              <td style="text-align:right;color:var(--accent-light);font-weight:600">¥${o.amount.toLocaleString()}</td>
+              <td style="text-align:right;color:var(--success);font-weight:700;padding-left:8px">¥${o.companionAmount.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;border-top:1px solid var(--border)">
+        <span style="color:var(--text-muted);font-size:13px">共 ${batchOrders.length} 笔 · 陪玩「${companionName}」</span>
+        <span style="font-weight:700;font-size:18px;color:var(--success)">¥${(totalAmount||0).toLocaleString()}</span>
+      </div>
+      ${remainingCount > 0 ? `<p style="font-size:12px;color:var(--warning);margin:4px 0">还有 ${remainingCount} 笔订单将继续保留在待结算列表</p>` : ''}
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;text-align:center">⚠️ 确认后可在提示中点「撤销」立即撤回</p>
+    `;
+  }
+
+  // 创建弹窗（使用独立 id 避免和 showModal 冲突）
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'settleConfirmOverlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:490px">
+      <div class="modal-header">
+        <h3>${cfg.icon} ${cfg.title}</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('settleConfirmOverlay')?.remove()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding-top:4px">${detailHtml}</div>
+      <div class="modal-actions">
+        <button class="btn" onclick="document.getElementById('settleConfirmOverlay')?.remove()">取消</button>
+        <button class="btn ${cfg.btnClass}" id="settleConfirmBtn" style="min-width:150px">${cfg.btnText}</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  document.getElementById('settleConfirmBtn').addEventListener('click', () => {
+    overlay.remove();
+    if (onConfirm) onConfirm();
+  });
 }
 
 // ============ 渲染辅助 ============
@@ -2283,7 +2440,7 @@ function resetAllCategories() {
 }
 
 // ============ Toast 提示 ============
-function showToast(message, type) {
+function showToast(message, type, opts = {}) {
   let container = document.querySelector('.toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -2292,9 +2449,55 @@ function showToast(message, type) {
   }
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.textContent = message;
+
+  if (opts.undoable) {
+    // 带撤销按钮的 Toast
+    toast.style.display = 'flex';
+    toast.style.alignItems = 'center';
+    toast.style.gap = '12px';
+    toast.style.justifyContent = 'space-between';
+
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = message;
+
+    const undoBtn = document.createElement('button');
+    undoBtn.textContent = '撤销';
+    undoBtn.style.cssText = `
+      background: rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    `;
+    undoBtn.onmouseenter = () => undoBtn.style.background = 'rgba(255,255,255,0.4)';
+    undoBtn.onmouseleave = () => undoBtn.style.background = 'rgba(255,255,255,0.25)';
+    undoBtn.onclick = () => {
+      const label = DataStore.undoLast();
+      toast.remove();
+      if (label) {
+        saveData();
+        updateBadges();
+        switchTab(currentTab);
+        showToast(`已撤销：${label}`, 'info');
+      }
+    };
+    toast.appendChild(msgSpan);
+    toast.appendChild(undoBtn);
+  } else {
+    toast.textContent = message;
+  }
+
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  const duration = opts.duration || 3000;
+  const timer = setTimeout(() => toast.remove(), duration);
+  // 鼠标悬停时暂停消失
+  toast.onmouseenter = () => clearTimeout(timer);
+  toast.onmouseleave = () => setTimeout(() => toast.remove(), 1500);
 }
 
 // ============ 云档案历史 ============

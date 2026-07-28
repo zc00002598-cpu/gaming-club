@@ -228,8 +228,8 @@ function loadFirebaseSDK() {
 <!-- SheetJS (xlsx) — 用于导出 Excel 备份文件 -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-<script src="js/data.js?v=202606201340"></script>
-<script src="js/app.js?v=202606201340"></script>
+<script src="js/data.js?v=202606282310"></script>
+<script src="js/app.js?v=202606282310"></script>
 
 <script>
 // ============ 退出登录 ============
@@ -384,8 +384,9 @@ async function handleCloudDownload() {
   `;
 
   if (ok) {
-    // 刷新页面数据
-    if (typeof refreshData === 'function') refreshData();
+    // 直接刷新页面，不再调用 refreshData()（避免重复下载）
+    if (typeof updateBadges === 'function') updateBadges();
+    if (typeof switchTab === 'function') switchTab(currentTab || 'active-orders');
     // 刷新云端更新信息
     getCloudUpdateInfo().then(info => {
       if (info) {
@@ -399,18 +400,20 @@ async function handleCloudDownload() {
     });
   }
 }
-// ============ 页面加载时自动下载云存档 ============
+// ============ 页面加载时自动下载云存档（静默模式，避免重复下载） ============
 (function autoDownloadOnLoad() {
   // 等待 Firebase SDK 加载完成
   const checkFirebase = setInterval(() => {
     if (typeof firebase !== 'undefined' && CLOUD_ENABLED) {
       clearInterval(checkFirebase);
-      console.log('[Auto Download] 开始自动下载云存档...');
-      downloadFromCloud().then(ok => {
+      console.log('[Auto Download] 开始静默下载云存档...');
+      downloadFromCloud(true).then(ok => {  // silent=true，不弹 Toast
         if (ok) {
+          console.log('[Auto Download] 云端数据已同步');
           showToast('已自动同步云端最新数据', 'success');
-          // 刷新页面数据
-          if (typeof refreshData === 'function') refreshData();
+          // 直接刷新页面，不再调用 refreshData()（避免重复下载）
+          if (typeof updateBadges === 'function') updateBadges();
+          if (typeof switchTab === 'function') switchTab(currentTab || 'active-orders');
           // 刷新云端更新信息
           getCloudUpdateInfo().then(info => {
             if (info) {

@@ -66,10 +66,18 @@ function handleGlobalUndo() {
   showToast(`已撤销：${label}`, 'info');
 }
 
-function refreshData() {
+async function refreshData() {
   if (DataStore.isCloudEnabled()) {
     // 云端模式：强制从云端拉取
-    DataStore.forceSync();
+    showToast('正在从云端同步数据...', 'info');
+    const ok = await DataStore.forceSync();
+    if (ok) {
+      updateBadges();
+      switchTab(currentTab);
+      showToast('数据已从云端同步 ✓', 'success');
+    } else {
+      showToast('云端同步失败，请检查网络', 'error');
+    }
   } else {
     // 离线模式：从本地 localStorage 加载
     loadData();

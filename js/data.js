@@ -236,6 +236,11 @@ let nextBossId       = bosses.length + 1;
 //  持久化：saveData / loadData（localStorage + 云存档）
 // ============================================================
 
+// 防抖：自动上传定时器（3秒内多次操作只触发一次上传）
+let _autoUploadTimer = null;
+const AUTO_UPLOAD_DELAY = 3000;   // 3秒防抖
+const ARCHIVE_INTERVAL  = 300000;  // 5分钟才保存一次档案
+
 function saveData(changeSummary) {
   if (!isLoggedIn()) {
     showToast('请先登录后再操作', 'error');
@@ -244,17 +249,21 @@ function saveData(changeSummary) {
   _saveLocal();
   if (changeSummary) console.log('[Save]', changeSummary);
   
-  // 自动上传到云存档
+  // 防抖自动上传：3秒内多次操作合并为一次上传
   if (CLOUD_ENABLED && !window.__DISABLE_AUTO_UPLOAD) {
-    uploadToCloud().then(ok => {
-      if (ok) console.log('[Auto Upload] 数据已自动上传到云存档');
-    });
+    if (_autoUploadTimer) clearTimeout(_autoUploadTimer);
+    _autoUploadTimer = setTimeout(() => {
+      _autoUploadTimer = null;
+      uploadToCloud(true).then(ok => {
+        if (ok) console.log('[Auto Upload] 数据已静默上传到云存档');
+      });
+    }, AUTO_UPLOAD_DELAY);
   }
 
-  // 自动保存云档案（最多每分钟一次，避免频繁写入）
+  // 自动保存云档案（最多每5分钟一次，避免频繁写入）
   if (CLOUD_ENABLED && changeSummary && !window.__DISABLE_AUTO_UPLOAD) {
     const now = Date.now();
-    if (now - _lastArchiveSave > 60000) {
+    if (now - _lastArchiveSave > ARCHIVE_INTERVAL) {
       _lastArchiveSave = now;
       saveArchiveToCloud(changeSummary).then(ok => {
         if (ok) console.log('[Auto Archive] 档案已保存：', changeSummary);
@@ -342,22 +351,22 @@ function _loadLocal() {
  * 上传当前本地数据到云端
  * 返回 Promise<boolean>
  */
-function uploadToCloud() {
+function uploadToCloud(silent) {
   return new Promise((resolve) => {
     if (!CLOUD_ENABLED) {
-      showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
+      if (!silent) showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
       resolve(false);
       return;
     }
     if (!isLoggedIn()) {
-      showToast('请先登录', 'error');
+      if (!silent) showToast('请先登录', 'error');
       resolve(false);
       return;
     }
 
     const ok = initFirebase();
     if (!ok && !_firebaseReady) {
-      showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
+      if (!silent) showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
       resolve(false);
       return;
     }
@@ -383,11 +392,11 @@ function uploadToCloud() {
     db.ref('gaming_club_data').set(payload, (error) => {
       if (error) {
         console.error('[Cloud] 上传失败', error);
-        showToast('上传失败：' + error.message, 'error');
+        if (!silent) showToast('上传失败：' + error.message, 'error');
         resolve(false);
       } else {
         console.log('[Cloud] 上传成功');
-        showToast('数据已上传到云存档 ✓', 'success');
+        if (!silent) showToast('数据已上传到云存档 ✓', 'success');
         resolve(true);
       }
     });
@@ -398,22 +407,22 @@ function uploadToCloud() {
  * 从云端下载数据并覆盖本地
  * 返回 Promise<boolean>
  */
-function downloadFromCloud() {
+function downloadFromCloud(silent) {
   return new Promise((resolve) => {
     if (!CLOUD_ENABLED) {
-      showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
+      if (!silent) showToast('请先在 js/data.js 中填写 Firebase 配置并启用云存档', 'error');
       resolve(false);
       return;
     }
     if (!isLoggedIn()) {
-      showToast('请先登录', 'error');
+      if (!silent) showToast('请先登录', 'error');
       resolve(false);
       return;
     }
 
     const ok = initFirebase();
     if (!ok && !_firebaseReady) {
-      showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
+      if (!silent) showToast('Firebase SDK 未加载，请在 index.html 中引入 Firebase SDK', 'error');
       resolve(false);
       return;
     }
@@ -422,7 +431,7 @@ function downloadFromCloud() {
     db.ref('gaming_club_data').once('value', (snapshot) => {
       const data = snapshot.val();
       if (!data) {
-        showToast('云端暂无数据，请先上传', 'warn');
+        if (!silent) showToast('云端暂无数据，请先上传', 'warn');
         resolve(false);
         return;
       }
@@ -463,16 +472,16 @@ function downloadFromCloud() {
 
         _saveLocal(); // 同步到 localStorage
         console.log('[Cloud] 下载成功，来自：', data.lastUpdatedBy, data.lastUpdatedAt);
-        showToast('已从云存档下载数据 ✓', 'success');
+        if (!silent) showToast('已从云存档下载数据 ✓', 'success');
         resolve(true);
       } catch (e) {
         console.error('[Cloud] 下载数据处理失败', e);
-        showToast('下载数据处理失败：' + e.message, 'error');
+        if (!silent) showToast('下载数据处理失败：' + e.message, 'error');
         resolve(false);
       }
     }, (error) => {
       console.error('[Cloud] 下载失败', error);
-      showToast('下载失败：' + error.message, 'error');
+      if (!silent) showToast('下载失败：' + error.message, 'error');
       resolve(false);
     });
   });
@@ -597,9 +606,14 @@ const DataStore = {
   getAdminAccount() { return getAdminAccount(); },
 
   // ====== 云存档 ======
-  async uploadToCloud()   { return await uploadToCloud(); },
-  async downloadFromCloud() { return await downloadFromCloud(); },
-  isCloudEnabled()        { return CLOUD_ENABLED && _firebaseReady; },
+  async uploadToCloud(silent)     { return await uploadToCloud(silent); },
+  async downloadFromCloud(silent) { return await downloadFromCloud(silent); },
+  async forceSync()               {
+    // forceSync 是手动刷新，需要显示 Toast
+    const ok = await downloadFromCloud(false);
+    return ok;
+  },
+  isCloudEnabled()                { return CLOUD_ENABLED && _firebaseReady; },
 
   // 云档案历史
   async getArchives()                { return await getArchivesFromCloud(); },
